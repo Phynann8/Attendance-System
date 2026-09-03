@@ -6,9 +6,9 @@
 <div class="flex-between">
     <div>
         <div class="page-title">{{ $attendance->student->name }}</div>
-        <div class="page-sub">Final review — this student was absent and never arrived.</div>
+        <div class="page-sub">Contact Parent to clarify the situation.</div>
     </div>
-    <a href="{{ route('admin.absence.index') }}" class="btn btn-outline btn-sm">← Back to list</a>
+    <a href="{{ route('admin.absence.index') }}" class="btn btn-primary btn-sm">← Back to list</a>
 </div>
 
 <div class="grid grid-2">
@@ -26,7 +26,7 @@
             <tr><th>Date</th><td>{{ $attendance->session->session_date->format('D, d M Y') }}</td></tr>
             <tr><th>Teacher attendance</th><td><x-status-badge status="absent" /></td></tr>
             <tr><th>Teacher submitted at</th><td>{{ $attendance->session->submitted_at?->format('H:i') ?? '—' }}</td></tr>
-            <tr><th>Student Affairs</th><td><span class="badge badge-red">Did not arrive</span></td></tr>
+            <tr><th>Student Affairs</th><td><span class="badge badge-red">Absent</span></td></tr>
             <tr><th>Permission</th>
                 <td>
                     @if($attendance->permission)
@@ -63,36 +63,36 @@
         @endif
 
         <div class="card">
-            <h2>Contacted parent — valid reason</h2>
+            <h2>Contacted parent — Exused Absence</h2>
             <form method="POST" action="{{ route('admin.absence.decide', $attendance) }}">
                 @csrf
                 <input type="hidden" name="decision" value="excused">
                 <div class="form-group">
-                    <label for="requested_by">Requested by (parent) *</label>
+                    <label for="requested_by">Requested by (parent)<span style="color: red;">*</span></label>
                     <input id="requested_by" name="requested_by" placeholder="e.g. Sok Dara (parent)" value="{{ $attendance->student->parent_name }}">
                 </div>
                 <div class="form-group">
-                    <label for="reason">Parent's reason *</label>
-                    <input id="reason" name="reason" placeholder="e.g. My child is sick">
+                    <label for="reason">Absence Reason <span style="color: red;">*</span></label>
+                    <input id="reason" name="reason" placeholder="e.g.sick">
                 </div>
                 <div class="form-group">
                     <label for="note_valid">Note</label>
-                    <textarea id="note_valid" name="admin_note" rows="2" placeholder="e.g. Called parent — reason verified as valid"></textarea>
+                    <textarea id="note_valid" name="admin_note" rows="2" placeholder="e.g. Called parent — ask for 1 day permission"></textarea>
                 </div>
-                <button type="submit" class="btn btn-green">✓ Permission Approved → Excused</button>
+                <button type="submit" class="btn btn-green">Excused Absence</button>
             </form>
         </div>
 
         <div class="card">
-            <h2>Contacted parent — invalid reason</h2>
+            <h2>Contacted parent — Unexcused Absence</h2>
             <form method="POST" action="{{ route('admin.absence.decide', $attendance) }}">
                 @csrf
                 <input type="hidden" name="decision" value="absent_without_permission">
                 <div class="form-group">
                     <label for="note_invalid">Note</label>
-                    <textarea id="note_invalid" name="admin_note" rows="2" placeholder="e.g. Child did not want to come to school"></textarea>
+                    <textarea id="note_invalid" name="admin_note" rows="2" placeholder="e.g. Student did not want to come to school"></textarea>
                 </div>
-                <button type="submit" class="btn btn-red">✕ Absent Without Permission</button>
+                <button type="submit" class="btn btn-red">Unexcused Absence</button>
             </form>
         </div>
     </div>

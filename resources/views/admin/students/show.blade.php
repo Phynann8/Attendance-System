@@ -8,7 +8,7 @@
         <div class="page-title">{{ $student->name }}</div>
         <div class="page-sub">Class {{ $student->classRoom->name ?? '—' }}</div>
     </div>
-    <a href="{{ route('admin.students.index') }}" class="btn btn-outline btn-sm">← Back</a>
+    <a href="{{ route('admin.students.index') }}" class="btn btn-outline btn-primary">← Back</a>
 </div>
 
 <div class="grid grid-2">

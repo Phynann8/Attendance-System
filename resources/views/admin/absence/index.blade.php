@@ -5,8 +5,8 @@
 @section('content')
 <div class="page-title">Absence Review</div>
 <div class="page-sub">
-    Students marked <span class="badge badge-red">Absent</span> by the teacher who never arrived —
-    Student Affairs escalated them here. You make the final decision (Rule 6/11-14).
+    Please check Students marked <span class="badge badge-red">Absent</span> by the teacher with
+    Student Affairs for verification.
 </div>
 
 <div class="card">

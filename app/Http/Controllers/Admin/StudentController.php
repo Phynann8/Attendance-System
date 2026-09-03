@@ -17,8 +17,14 @@ class StudentController extends Controller
 
         if ($request->filled('q')) {
             $q = $request->input('q');
-            $query->where('name', 'like', "%{$q}%")
-                ->orWhere('parent_phone', 'like', "%{$q}%");
+            $query->where(function ($w) use ($q) {
+                $w->where('name', 'like', "%{$q}%")
+                    ->orWhere('parent_phone', 'like', "%{$q}%");
+            });
+        }
+
+        if ($request->filled('class_id')) {
+            $query->where('class_id', (int) $request->input('class_id'));
         }
 
         return view('admin.students.index', [

@@ -6,7 +6,7 @@
 <div class="flex-between">
     <div>
         <div class="page-title">Students</div>
-        <div class="page-sub">All students across classes.</div>
+        <div class="page-sub">All students in classes.</div>
     </div>
     <a href="{{ route('admin.students.create') }}" class="btn">+ Add Student</a>
 </div>
@@ -14,12 +14,21 @@
 <div class="card">
     <form method="GET" class="form-row">
         <div class="form-group">
+            <label for="class_id">Class</label>
+            <select id="class_id" name="class_id">
+                <option value="">All classes</option>
+                @foreach(\App\Models\ClassRoom::orderBy('name')->get() as $class)
+                    <option value="{{ $class->id }}" @selected(request('class_id') == $class->id)>{{ $class->name }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="form-group">
             <label for="q">Search</label>
             <input type="text" id="q" name="q" value="{{ request('q') }}" placeholder="Name or phone…">
         </div>
         <div class="form-group">
             <label>&nbsp;</label>
-            <button class="btn btn-outline btn-sm" type="submit">Search</button>
+            <button class="btn btn-outline btn-primary" type="submit">Filter</button>
         </div>
     </form>
 </div>
