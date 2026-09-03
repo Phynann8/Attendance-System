@@ -12,8 +12,8 @@
 </div>
 
 <div class="card">
-    <form method="GET" class="form-row">
-        <div class="form-group">
+    <form method="GET" class="filter-row">
+        <div class="form-group class-filter">
             <label for="class_id">Class</label>
             <select id="class_id" name="class_id">
                 <option value="">All classes</option>
@@ -22,14 +22,11 @@
                 @endforeach
             </select>
         </div>
-        <div class="form-group">
+        <div class="form-group search-filter">
             <label for="q">Search</label>
             <input type="text" id="q" name="q" value="{{ request('q') }}" placeholder="Name or phone…">
         </div>
-        <div class="form-group">
-            <label>&nbsp;</label>
-            <button class="btn btn-outline btn-primary" type="submit">Filter</button>
-        </div>
+        <button class="btn" type="submit">Filter</button>
     </form>
 </div>
 
@@ -42,7 +39,7 @@
                 <th>Parent</th>
                 <th>Phone</th>
                 <th>Active</th>
-                <th></th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -59,7 +56,7 @@
                             <span class="badge badge-red">Inactive</span>
                         @endif
                     </td>
-                    <td><a href="{{ route('admin.students.show', $student) }}" class="btn btn-sm btn-outline">View</a></td>
+                    <td><a href="{{ route('admin.students.show', $student) }}" class="btn btn-sm btn-primary">View</a></td>
                 </tr>
             @empty
                 <tr><td colspan="6" class="empty">No students found.</td></tr>
