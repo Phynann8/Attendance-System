@@ -6,7 +6,7 @@
 <div class="flex-between">
     <div>
         <div class="page-title">Classes</div>
-        <div class="page-sub">Classrooms, homeroom teachers and student counts.</div>
+        <div class="page-sub">Manage classrooms</div>
     </div>
     <a href="{{ route('admin.classes.create') }}" class="btn">+ Add Class</a>
 </div>
@@ -29,7 +29,7 @@
                     <td>{{ $class->grade ?? '—' }}</td>
                     <td>{{ $class->teacher->name ?? '—' }}</td>
                     <td>{{ $class->students_count }}</td>
-                    <td><a href="{{ route('admin.classes.show', $class) }}" class="btn btn-sm btn-outline">View</a></td>
+                    <td><a href="{{ route('admin.classes.show', $class) }}" class="btn btn-sm btn-primary">View</a></td>
                 </tr>
             @empty
                 <tr><td colspan="5" class="empty">No classes yet.</td></tr>

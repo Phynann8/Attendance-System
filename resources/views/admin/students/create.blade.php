@@ -4,19 +4,19 @@
 
 @section('content')
 <div class="page-title">Add Student</div>
-<div class="page-sub">Create a student record and link the parent's contact details.</div>
+<div class="page-sub">Create a student record details.</div>
 
-<div class="card" style="max-width:720px">
+<div class="card" style="max-width:720px; margin: auto;">
     <form method="POST" action="{{ route('admin.students.store') }}">
         @csrf
         <div class="form-group">
-            <label for="name">Student name *</label>
+            <label for="name">Student name <span style="color: red;">*</span></label>
             <input id="name" name="name" value="{{ old('name') }}" required>
             @error('name')<div class="error">{{ $message }}</div>@enderror
         </div>
 
         <div class="form-group">
-            <label for="class_id">Class *</label>
+            <label for="class_id">Class <span style="color: red;">*</span></label>
             <select id="class_id" name="class_id" required>
                 <option value="">Select class…</option>
                 @foreach(\App\Models\ClassRoom::orderBy('name')->get() as $class)
@@ -53,7 +53,7 @@
             </div>
         </div>
 
-        <button type="submit" class="btn">Save Student</button>
+        <button type="submit" class="btn">Save</button>
         <a href="{{ route('admin.students.index') }}" class="btn btn-sm btn-outline">Cancel</a>
     </form>
 </div>

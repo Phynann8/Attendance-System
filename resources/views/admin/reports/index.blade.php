@@ -6,7 +6,7 @@
 <div class="flex-between">
     <div>
         <div class="page-title">Daily Attendance Report</div>
-        <div class="page-sub">Final classifications — the end-of-day summary table.</div>
+        <div class="page-sub">Summary Attendance Report</div>
     </div>
     <form method="GET" class="flex-between" style="gap:8px">
         <input type="date" name="date" value="{{ $date->format('Y-m-d') }}" style="width:auto" onchange="this.form.submit()">
