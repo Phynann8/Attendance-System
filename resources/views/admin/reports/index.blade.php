@@ -25,6 +25,7 @@
     <table>
         <thead>
             <tr>
+                <th>N.O</th>
                 <th>Student</th>
                 <th>Class</th>
                 <th>Teacher Attendance</th>
@@ -36,6 +37,7 @@
         <tbody>
             @forelse($rows as $attendance)
                 <tr>
+                    <td>{{ $loop->iteration }}</td>
                     <td><strong>{{ $attendance->student->name }}</strong></td>
                     <td>{{ $attendance->session->classRoom->name ?? '—' }}</td>
                     <td>

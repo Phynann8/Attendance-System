@@ -74,6 +74,7 @@
     <table>
         <thead>
             <tr>
+                <th>N.O</th>
                 <th>Student</th>
                 <th>Class</th>
                 <th>Date</th>
@@ -86,6 +87,7 @@
         <tbody>
             @forelse($permissions as $permission)
                 <tr>
+                    <td>{{ $loop->iteration + ($permissions->currentPage() - 1) * $permissions->perPage() }}</td>
                     <td><strong>{{ $permission->student->name }}</strong></td>
                     <td>{{ $permission->student->classRoom->name ?? '—' }}</td>
                     <td>{{ $permission->attendance_date->format('D, d M Y') }}</td>
@@ -95,7 +97,7 @@
                     <td>{{ $permission->reason }}</td>
                     <td><x-status-badge :status="$permission->status" /></td>
                     <td>
-                        <a href="{{ route('admin.permissions.show', $permission) }}" class="btn btn-sm btn-outline">Review</a>
+                        <a href="{{ route('admin.permissions.show', $permission) }}" class="btn btn-sm btn-green">Review</a>
                     </td>
                 </tr>
             @empty

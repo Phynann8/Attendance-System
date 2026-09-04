@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Attendance System — Retro Presentation Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0d0e15;
+      --card-bg: #151824;
+      --card-border: #2a2f45;
+      --screen-border: #ffb000;
+      --neon-cyan: #00f0ff;
+      --neon-amber: #ffb000;
+      --neon-green: #00ff66;
+      --neon-pink: #ff007f;
+      --neon-purple: #b026ff;
+      --text-main: #f0f4fc;
+      --text-muted: #8c97b8;
+      --retro-shadow: 4px 4px 0px #000;
+      --font-pixel: 'Press Start 2P', monospace;
+      --font-terminal: 'VT323', monospace;
+      --font-code: 'Space Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font-code);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* CRT Scanline and Flicker Overlay */
+    .crt-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 999;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+                  linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 4px, 6px 100%;
+      opacity: 0.75;
+      transition: opacity 0.3s ease;
+    }
+
+    .crt-vignette {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.85);
+      pointer-events: none;
+      z-index: 998;
+    }
+
+    body.no-crt .crt-overlay,
+    body.no-crt .crt-vignette {
+      display: none;
+    }
+
+    /* Main Container / Chassis */
+    .terminal-cabinet {
+      width: 95vw;
+      max-width: 1200px;
+      height: 90vh;
+      max-height: 760px;
+      background: #181a24;
+      border: 4px solid #3b4261;
+      box-shadow: 0 0 0 4px #000, 10px 10px 0px rgba(0,0,0,0.6), inset 0 0 20px rgba(0,0,0,0.8);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Top Titlebar */
+    .header-bar {
+      background: #24283b;
+      border-bottom: 3px solid #000;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-pixel);
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .retro-badge-sys {
+      background: var(--neon-pink);
+      color: #fff;
+      padding: 4px 8px;
+      border: 2px solid #000;
+      box-shadow: 2px 2px 0px #000;
+    }
+
+    .header-status {
+      color: var(--neon-green);
+      animation: pulseText 1.5s infinite alternate;
+    }
+
+    .header-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-mini {
+      background: #1f2335;
+      color: var(--neon-cyan);
+      border: 2px solid #000;
+      padding: 5px 10px;
+      font-family: var(--font-code);
+      font-size: 0.75rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 2px 2px 0px #000;
+      transition: all 0.1s;
+    }
+
+    .btn-mini:hover {
+      background: var(--neon-cyan);
+      color: #000;
+      transform: translate(-1px, -1px);
+      box-shadow: 3px 3px 0px #000;
+    }
+
+    .btn-mini:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0px #000;
+    }
+
+    /* Slide Viewport */
+    .slide-viewport {
+      flex: 1;
+      padding: 24px 32px;
+      overflow-y: auto;
+      position: relative;
+      background: radial-gradient(circle at center, #171924 0%, #0d0f17 100%);
+    }
+
+    .slide {
+      display: none;
+      height: 100%;
+      flex-direction: column;
+      animation: fadeInSlide 0.25s ease-out forwards;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    /* Navigation Footer */
+    .footer-bar {
+      background: #1f2335;
+      border-top: 3px solid #000;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-pixel);
+      font-size: 0.65rem;
+    }
+
+    .footer-nav {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn-retro {
+      background: var(--neon-amber);
+      color: #000;
+      font-family: var(--font-pixel);
+      font-size: 0.65rem;
+      padding: 8px 14px;
+      border: 2px solid #000;
+      cursor: pointer;
+      box-shadow: 3px 3px 0px #000;
+      transition: all 0.1s;
+    }
+
+    .btn-retro:hover {
+      background: #ffc933;
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0px #000;
+    }
+
+    .btn-retro:active {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0px #000;
+    }
+
+    .progress-track {
+      flex: 1;
+      max-width: 280px;
+      height: 14px;
+      background: #0d0e15;
+      border: 2px solid #000;
+      margin: 0 16px;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        var(--neon-green),
+        var(--neon-green) 8px,
+        #00cc52 8px,
+        #00cc52 16px
+      );
+      width: 10%;
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Typography & Components */
+    h1.slide-title {
+      font-family: var(--font-pixel);
+      font-size: 1.4rem;
+      line-height: 1.6;
+      color: var(--neon-amber);
+      text-shadow: 2px 2px 0px #000, 0 0 10px rgba(255,176,0,0.4);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    h2.slide-subtitle {
+      font-family: var(--font-code);
+      font-size: 0.95rem;
+      color: var(--neon-cyan);
+      margin-bottom: 20px;
+      font-weight: 400;
+      letter-spacing: 0.5px;
+    }
+
+    .retro-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 10px;
+    }
+
+    .retro-card {
+      background: var(--card-bg);
+      border: 2px solid var(--card-border);
+      padding: 16px;
+      box-shadow: var(--retro-shadow);
+      position: relative;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .retro-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--neon-cyan);
+    }
+
+    .card-tag {
+      display: inline-block;
+      font-family: var(--font-pixel);
+      font-size: 0.55rem;
+      padding: 3px 6px;
+      margin-bottom: 10px;
+      border: 1px solid #000;
+      box-shadow: 1px 1px 0px #000;
+    }
+
+    .tag-cyan { background: var(--neon-cyan); color: #000; }
+    .tag-amber { background: var(--neon-amber); color: #000; }
+    .tag-green { background: var(--neon-green); color: #000; }
+    .tag-pink { background: var(--neon-pink); color: #fff; }
+    .tag-purple { background: var(--neon-purple); color: #fff; }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .card-body {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .code-pill {
+      background: #0d0f17;
+      color: var(--neon-green);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      border: 1px solid #222;
+    }
+
+    /* Terminal Box */
+    .terminal-output {
+      background: #090a10;
+      border: 2px solid #00f0ff;
+      padding: 14px 18px;
+      font-family: var(--font-terminal);
+      font-size: 1.3rem;
+      color: var(--neon-green);
+      line-height: 1.4;
+      box-shadow: inset 0 0 10px rgba(0,240,255,0.2), 4px 4px 0px #000;
+      margin-top: 14px;
+      overflow-x: auto;
+    }
+
+    /* Flowchart / Stepper component */
+    .flow-stepper {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .flow-step-item {
+      display: flex;
+      align-items: center;
+      background: #12141f;
+      border: 2px solid #24293e;
+      padding: 10px 14px;
+      box-shadow: 3px 3px 0px #000;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .flow-step-item.active-step,
+    .flow-step-item:hover {
+      border-color: var(--neon-amber);
+      background: #1c2033;
+    }
+
+    .step-num {
+      font-family: var(--font-pixel);
+      font-size: 0.75rem;
+      color: #000;
+      background: var(--neon-amber);
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #000;
+      flex-shrink: 0;
+    }
+
+    .step-info {
+      flex: 1;
+    }
+
+    .step-name {
+      font-weight: bold;
+      color: #fff;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Speaker Notes Modal / Panel */
+    .notes-panel {
+      position: absolute;
+      bottom: 54px;
+      right: 20px;
+      width: 380px;
+      background: #111422;
+      border: 3px solid var(--neon-cyan);
+      box-shadow: 6px 6px 0px #000;
+      padding: 16px;
+      z-index: 100;
+      display: none;
+      animation: slideUp 0.2s ease;
+    }
+
+    .notes-panel.visible {
+      display: block;
+    }
+
+    .notes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-pixel);
+      font-size: 0.65rem;
+      color: var(--neon-cyan);
+      margin-bottom: 8px;
+      border-bottom: 1px dashed #334;
+      padding-bottom: 6px;
+    }
+
+    .notes-body {
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      line-height: 1.5;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    /* Key indicator badges */
+    .key-hint {
+      display: inline-block;
+      background: #2a2e45;
+      color: #fff;
+      padding: 1px 5px;
+      border-radius: 3px;
+      border: 1px solid #485177;
+      font-family: var(--font-code);
+      font-size: 0.7rem;
+    }
+
+    @keyframes fadeInSlide {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulseText {
+      from { opacity: 0.7; }
+      to { opacity: 1; text-shadow: 0 0 8px var(--neon-green); }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive */
+    @media (max-width: 850px) {
+      .terminal-cabinet { width: 98vw; height: 96vh; }
+      .slide-viewport { padding: 16px; }
+      h1.slide-title { font-size: 1.1rem; }
+      .retro-grid { grid-template-columns: 1fr; }
+      .notes-panel { width: calc(100% - 40px); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CRT Visual Overlay -->
+  <div class="crt-overlay"></div>
+  <div class="crt-vignette"></div>
+
+  <!-- Terminal Chassis -->
+  <div class="terminal-cabinet">
+    
+    <!-- Top Header -->
+    <div class="header-bar">
+      <div class="header-left">
+        <span class="retro-badge-sys">SYS:ATTENDANCE_OS</span>
+        <span class="header-status">● SYSTEM ONLINE (PORT 8080)</span>
+      </div>
+      <div class="header-controls">
+        <button class="btn-mini" id="toggleSound" title="Toggle 8-bit sound effects">🔊 SOUND [S]</button>
+        <button class="btn-mini" id="toggleCrt" title="Toggle CRT scanlines">📺 CRT [C]</button>
+        <button class="btn-mini" id="toggleNotes" title="Toggle presenter notes">📝 NOTES [N]</button>
+        <button class="btn-mini" id="toggleFullscreen" title="Fullscreen presentation">⛶ [F]</button>
+      </div>
+    </div>
+
+    <!-- Viewport Container -->
+    <div class="slide-viewport">
+
+      <!-- SLIDE 1: Title & Hero -->
+      <div class="slide active" data-slide="1" data-notes="Welcome everyone! This presentation introduces our automated, role-based School Attendance System developed with Laravel 13, MySQL, and Docker. It solves the chaos of lost notes, unverified absences, and subjective late arrival tracking through frozen business rules and an immutable audit trail.">
+        <div style="text-align: center; margin: auto 0; padding: 20px 0;">
+          <div class="card-tag tag-pink">ROLE-BASED WORKFLOW ENGINE v1.0</div>
+          <h1 class="slide-title" style="justify-content: center; font-size: 1.8rem; margin: 15px 0;">
+            🏫 SCHOOL ATTENDANCE SYSTEM
+          </h1>
+          <h2 class="slide-subtitle" style="font-size: 1.1rem; color: var(--neon-cyan);">
+            Automated Permissions · Real-Time Roll Call · Student Affairs Verification · Audit Trail
+          </h2>
+
+          <div style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin: 25px 0;">
+            <div class="card-tag tag-cyan" style="font-size: 0.7rem; padding: 6px 12px;">⚡ LARAVEL 13</div>
+            <div class="card-tag tag-amber" style="font-size: 0.7rem; padding: 6px 12px;">🗄️ MYSQL 8 + DOCKER</div>
+            <div class="card-tag tag-green" style="font-size: 0.7rem; padding: 6px 12px;">🔒 15 FROZEN BUSINESS RULES</div>
+            <div class="card-tag tag-purple" style="font-size: 0.7rem; padding: 6px 12px;">🛡️ IMMUTABLE AUDIT LOGS</div>
+          </div>
+
+          <div class="terminal-output" style="max-width: 780px; margin: 0 auto; text-align: left;">
+            <div>> BOOTING ATTENDANCE_CORE... [OK]</div>
+            <div>> SEEDING HISTORICAL SIMULATION (YESTERDAY & TODAY)... [OK]</div>
+            <div>> ROLES LOADED: [Admin, Teacher, Student Affairs, Parent]</div>
+            <div>> PRESS <span style="color: var(--neon-amber);">[NEXT SLIDE]</span> OR <span style="color: var(--neon-amber);">[SPACEBAR]</span> TO COMMENCE BRIEFING...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: Problem & Motivation -->
+      <div class="slide" data-slide="2" data-notes="Highlight the pain points of legacy systems. Traditional attendance suffers from communication gaps where a parent calls the office, but the teacher doesn't know and marks the kid truant. Or teachers guess late arrival minutes. Our system eliminates these issues by creating a formal 4-way role bridge.">
+        <h1 class="slide-title"><span style="color: var(--neon-pink);">01.</span> THE CORE PROBLEM & MOTIVATION</h1>
+        <h2 class="slide-subtitle">Why Traditional Paper / Chat-Based Attendance Breaks Down</h2>
+
+        <div class="retro-grid">
+          <div class="retro-card">
+            <span class="card-tag tag-pink">DISCONNECTED CHANNELS</span>
+            <div class="card-title">1. Communication Gap</div>
+            <div class="card-body">
+              Parents notify front desk or message in chat groups; homeroom teachers don't get the message before class, causing false truancy alerts.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-amber">SUBJECTIVE MARKING</span>
+            <div class="card-title">2. Inaccurate Late Minutes</div>
+            <div class="card-body">
+              Teachers guess arrival time when busy teaching. Gate arrivals aren't synced with class start timestamps.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-cyan">LACK OF AUDIT</span>
+            <div class="card-title">3. Disputed Status Changes</div>
+            <div class="card-body">
+              When an absence is changed to excused later, there is no verifiable log of who authorized the change, when, or why.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-green">ROLE CONFUSION</span>
+            <div class="card-title">4. Role Segregation Failure</div>
+            <div class="card-body">
+              Teachers shouldn't have to call parents during class time; Student Affairs and Admin should handle verification workflows.
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output">
+          💡 <strong>SOLUTION:</strong> A unified state machine with 4 segregated roles, strict 15-rule validation logic, and timestamp-based automated late calculations.
+        </div>
+      </div>
+
+      <!-- SLIDE 3: Tech Stack & Architecture -->
+      <div class="slide" data-slide="3" data-notes="Walk through what technologies were used to create this. Laravel 13 with PHP 8.2+ powers the backend. We built a clean service layer with AttendanceService containing the 15 business rules and AuditService writing immutable logs. Docker provides one-click replication.">
+        <h1 class="slide-title"><span style="color: var(--neon-cyan);">02.</span> TECH STACK & WHAT I USED</h1>
+        <h2 class="slide-subtitle">Robust, Modern Backend Architecture with Zero Build Friction</h2>
+
+        <div class="retro-grid">
+          <div class="retro-card">
+            <span class="card-tag tag-cyan">BACKEND ENGINE</span>
+            <div class="card-title">Laravel 13 & PHP 8.2+</div>
+            <div class="card-body">
+              • Clean MVC architecture with strict Type Hinting.<br>
+              • Custom <span class="code-pill">EnsureRole</span> authentication middleware.<br>
+              • Decoupled <span class="code-pill">AttendanceService</span> & <span class="code-pill">AuditService</span>.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-amber">DATA & PERSISTENCE</span>
+            <div class="card-title">MySQL 8 & SQLite Memory</div>
+            <div class="card-body">
+              • Relational foreign keys between users, classes, sessions.<br>
+              • In-memory SQLite for instantaneous automated test runs.<br>
+              • Rich seeders that replay real-world yesterday/today scenarios.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-green">DEVOPS & DEPLOYMENT</span>
+            <div class="card-title">Docker & Docker Compose</div>
+            <div class="card-body">
+              • Nginx web server + PHP-FPM container orchestration.<br>
+              • Auto-bootstrap script (<span class="code-pill">app-init.sh</span>) runs key-gen, migrations & seeders automatically.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-purple">FRONTEND & SECURITY</span>
+            <div class="card-title">Blade Components & Tests</div>
+            <div class="card-body">
+              • Pure CSS styling with zero heavy NPM build steps.<br>
+              • Status badge component system with color states.<br>
+              • Automated test suites for business rule compliance.
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output">
+          ⚙️ <strong>DOCKER RUNTIME:</strong> <span class="code-pill">docker compose up -d --build</span> creates the whole environment ready on port 8080!
+        </div>
+      </div>
+
+      <!-- SLIDE 4: System Functions & Modules -->
+      <div class="slide" data-slide="4" data-notes="Explain the 4 distinct user roles and what each module does. Parents request permission. Teachers mark present/absent with pre-locked protection. Student Affairs reviews absent queues and logs late gate arrivals. Admin makes final rulings on unexcused absences and manages the system.">
+        <h1 class="slide-title"><span style="color: var(--neon-green);">03.</span> SYSTEM FUNCTIONS & MODULES</h1>
+        <h2 class="slide-subtitle">4 Dedicated Role Portals with Strict Separation of Concerns</h2>
+
+        <div class="retro-grid">
+          <div class="retro-card">
+            <span class="card-tag tag-pink">ROLE 1: PARENT PORTAL</span>
+            <div class="card-title">👨‍👩‍👧 Parent Portal</div>
+            <div class="card-body">
+              • Submit pre-class absence/leave requests with reason & date.<br>
+              • Real-time tracking of approval status (<span class="code-pill">pending</span>, <span class="code-pill">approved</span>, <span class="code-pill">rejected</span>).<br>
+              • Linked directly to enrolled children (e.g. Dara, Sokha).
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-cyan">ROLE 2: TEACHER WORKSPACE</span>
+            <div class="card-title">👩‍🏫 Teacher Module</div>
+            <div class="card-body">
+              • Open class session on-demand (e.g., Grade 10A, 9B).<br>
+              • Simplified 2-state marking: <span class="code-pill">Present</span> / <span class="code-pill">Absent</span>.<br>
+              • 🔒 <strong>Pre-Lock Feature:</strong> Approved leaves are locked automatically.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-amber">ROLE 3: STUDENT AFFAIRS</span>
+            <div class="card-title">🏢 Student Affairs Hub</div>
+            <div class="card-body">
+              • Live queue of absent students immediately after teacher submits.<br>
+              • ⏱️ Mark late arrivals with auto-calculated <span class="code-pill">minutes_late</span>.<br>
+              • Escalate unresolved unverified absences to Admin.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-purple">ROLE 4: ADMIN COMMAND</span>
+            <div class="card-title">🛡️ Admin & Review</div>
+            <div class="card-body">
+              • Pre-class permission approval & rejection.<br>
+              • Final absence adjudication (<span class="code-pill">Excused</span> vs <span class="code-pill">Absent W/O Perm</span>).<br>
+              • Complete school reports & immutable audit trail review.
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output">
+          🔐 <strong>SECURITY GUARANTEE:</strong> Middleware ensures no role can access unauthorized routes or alter locked records.
+        </div>
+      </div>
+
+      <!-- SLIDE 5: The 15 Frozen Business Rules & Workflow -->
+      <div class="slide" data-slide="5" data-notes="This is the heart of the system—the frozen 15 business rules. Emphasize how pre-approved requests lock the teacher's row so the teacher can't mistakenly mark them absent. Teachers only mark present or absent. Student Affairs handles late calculation. Admin decides final unexcused absences. Every action writes to attendance_logs.">
+        <h1 class="slide-title"><span style="color: var(--neon-amber);">04.</span> THE FROZEN BUSINESS WORKFLOW</h1>
+        <h2 class="slide-subtitle">15 Strict Business Rules Driving the State Transition Engine</h2>
+
+        <div class="flow-stepper">
+          <div class="flow-step-item active-step" onclick="highlightFlow(1)">
+            <div class="step-num">1</div>
+            <div class="step-info">
+              <div class="step-name">Parent Request & Admin Pre-Approval <span class="card-tag tag-pink">RULES 9 & 10</span></div>
+              <div class="step-desc">Parent submits leave before class. Admin approves. When teacher opens roll-call, that student's row is <strong>🔒 PRE-LOCKED</strong>.</div>
+            </div>
+          </div>
+
+          <div class="flow-step-item" onclick="highlightFlow(2)">
+            <div class="step-num">2</div>
+            <div class="step-info">
+              <div class="step-name">Teacher 2-State Marking & Submission <span class="card-tag tag-cyan">RULES 1 & 2</span></div>
+              <div class="step-desc">Teacher only marks <strong>Present</strong> or <strong>Absent</strong> (never late). Submitting finalizes teacher phase & unlocks Student Affairs queue.</div>
+            </div>
+          </div>
+
+          <div class="flow-step-item" onclick="highlightFlow(3)">
+            <div class="step-num">3</div>
+            <div class="step-info">
+              <div class="step-name">Student Affairs Gate Verification <span class="card-tag tag-amber">RULES 3 & 4</span></div>
+              <div class="step-desc">If student arrives at gate ➔ SA clicks 'Mark Arrived'. System calculates exact <span class="code-pill">minutes_late</span> from submit time ➔ Status: <strong>LATE</strong> (Case Closed).</div>
+            </div>
+          </div>
+
+          <div class="flow-step-item" onclick="highlightFlow(4)">
+            <div class="step-num">4</div>
+            <div class="step-info">
+              <div class="step-name">Admin Adjudication & Audit Trail <span class="card-tag tag-purple">RULES 13, 14 & 15</span></div>
+              <div class="step-desc">If student never arrived ➔ SA escalates to Admin. Valid parent reason = <strong>EXCUSED</strong>. Invalid = <strong>ABSENT WITHOUT PERMISSION</strong>. Audit logged!</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output" id="flowTerminalText">
+          🎯 <strong>FOUR FINAL OUTCOMES:</strong> <span class="code-pill">Present</span> · <span class="code-pill">Late (X min)</span> · <span class="code-pill">Excused</span> · <span class="code-pill">Absent Without Permission</span>
+        </div>
+      </div>
+
+      <!-- SLIDE 6: How to Use It (Step-by-Step Guide) -->
+      <div class="slide" data-slide="6" data-notes="Give a practical step-by-step walkthrough of how a user navigates the application. Show how seamless it is from login to report generation.">
+        <h1 class="slide-title"><span style="color: var(--neon-cyan);">05.</span> HOW TO USE THE SYSTEM</h1>
+        <h2 class="slide-subtitle">Step-by-Step User Operational Walkthrough</h2>
+
+        <div class="retro-grid">
+          <div class="retro-card">
+            <span class="card-tag tag-cyan">STEP 1: LOGIN</span>
+            <div class="card-title">1. Access Portal</div>
+            <div class="card-body">
+              Log in with role-specific credentials (<span class="code-pill">teacher@school.test</span>, <span class="code-pill">admin@school.test</span>, etc.). Redirects to tailored dashboard.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-pink">STEP 2: PERMISSION</span>
+            <div class="card-title">2. Request / Approve Leave</div>
+            <div class="card-body">
+              Parent selects child, date, reason. Admin reviews request in pending queue and clicks <span class="code-pill">Approve</span>.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-amber">STEP 3: ROLL CALL</span>
+            <div class="card-title">3. Teacher Takes Attendance</div>
+            <div class="card-body">
+              Teacher opens class session. Approved leaves show as locked. Teacher marks remaining students and clicks <span class="code-pill">Submit</span>.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-green">STEP 4: RESOLUTION</span>
+            <div class="card-title">4. Review & Finalize</div>
+            <div class="card-body">
+              Student Affairs logs latecomers or escalates to Admin. Admin makes final determination. Summary reports update instantly.
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output">
+          🚀 <strong>LIVE DEMO CREDENTIALS:</strong> Password for all demo accounts is <span class="code-pill">password</span>. Preloaded with realistic scenario data!
+        </div>
+      </div>
+
+      <!-- SLIDE 7: Real-World Use Cases -->
+      <div class="slide" data-slide="7" data-notes="Present the 4 real-world scenarios included in the demo seeder. This proves the system handles all edge cases: planned doctor visits, traffic jams, emergency sickness calls, and deliberate skipping.">
+        <h1 class="slide-title"><span style="color: var(--neon-pink);">06.</span> REAL-WORLD USE CASES</h1>
+        <h2 class="slide-subtitle">Scenarios Handled Automatically by the System</h2>
+
+        <div class="retro-grid">
+          <div class="retro-card" style="border-left: 4px solid var(--neon-green);">
+            <span class="card-tag tag-green">USE CASE A: MEDICAL LEAVE</span>
+            <div class="card-title">Planned Hospital Visit (Dara)</div>
+            <div class="card-body">
+              • Parent submits doctor appointment notice in advance.<br>
+              • Admin approves prior to class.<br>
+              • Teacher's screen has Dara's row <strong>pre-locked as Excused</strong>.<br>
+              • <strong>Outcome:</strong> No false alarms, no interruptions.
+            </div>
+          </div>
+
+          <div class="retro-card" style="border-left: 4px solid var(--neon-amber);">
+            <span class="card-tag tag-amber">USE CASE B: BUS DELAY</span>
+            <div class="card-title">Traffic Jam / Late Arrival (Ratha)</div>
+            <div class="card-body">
+              • Teacher marks absent at 08:00 class start.<br>
+              • Ratha arrives at school gate at 08:17.<br>
+              • Student Affairs clicks <em>'Mark Arrived'</em>.<br>
+              • <strong>Outcome:</strong> Automatically marked <strong>Late (17 mins)</strong>.
+            </div>
+          </div>
+
+          <div class="retro-card" style="border-left: 4px solid var(--neon-cyan);">
+            <span class="card-tag tag-cyan">USE CASE C: MORNING EMERGENCY</span>
+            <div class="card-title">Sudden Sickness (Sopheak)</div>
+            <div class="card-body">
+              • Teacher marks Absent ➔ SA escalates case to Admin.<br>
+              • Admin calls parent, confirms child has severe fever.<br>
+              • Admin records reason and grants retroactive permission.<br>
+              • <strong>Outcome:</strong> Final status <strong>Excused</strong>.
+            </div>
+          </div>
+
+          <div class="retro-card" style="border-left: 4px solid var(--neon-pink);">
+            <span class="card-tag tag-pink">USE CASE D: TRUANCY</span>
+            <div class="card-title">Unannounced Absence (Lina)</div>
+            <div class="card-body">
+              • Student missing with no prior notice.<br>
+              • SA escalates ➔ Admin contacts parent, discovering unexcused truancy.<br>
+              • Admin designates absence as unapproved.<br>
+              • <strong>Outcome:</strong> <strong>Absent Without Permission</strong>.
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output">
+          📊 <strong>OUTCOME COMPLIANCE:</strong> All 4 outcomes generate an unforgeable record in the <span class="code-pill">attendance_logs</span> table.
+        </div>
+      </div>
+
+      <!-- SLIDE 8: Architectural Advantages & Audit Trail -->
+      <div class="slide" data-slide="8" data-notes="Highlight key engineering strengths. Explain why this architectural pattern is superior: separation of concerns, immutable audit trail, automated testing, and zero deployment friction.">
+        <h1 class="slide-title"><span style="color: var(--neon-purple);">07.</span> ARCHITECTURAL HIGHLIGHTS</h1>
+        <h2 class="slide-subtitle">Enterprise Quality, Security, and Audit Integrity</h2>
+
+        <div class="retro-grid">
+          <div class="retro-card">
+            <span class="card-tag tag-purple">AUDIT TRAIL</span>
+            <div class="card-title">Immutable Audit Trail</div>
+            <div class="card-body">
+              Every action (session opened, row locked, late calculated, absence decided) writes an immutable record to <span class="code-pill">attendance_logs</span> with User ID, timestamp, and metadata.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-cyan">SEPARATION</span>
+            <div class="card-title">Strict Role Segregation</div>
+            <div class="card-body">
+              Teachers focus 100% on teaching without managing parent disputes; Student Affairs handles gate logistics; Admin retains final legal oversight.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-green">TEST DRIVEN</span>
+            <div class="card-title">Automated Test Suites</div>
+            <div class="card-body">
+              Comprehensive test suite executed via <span class="code-pill">php artisan test</span> verifying all 15 business rules against in-memory SQLite database.
+            </div>
+          </div>
+
+          <div class="retro-card">
+            <span class="card-tag tag-amber">RELIABILITY</span>
+            <div class="card-title">Zero Build Friction</div>
+            <div class="card-body">
+              No fragile Node/Webpack build steps required. Pure responsive Blade templates with instant hot-reload and clean maintainability.
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal-output">
+          🛡️ <strong>TRANSPARENCY:</strong> School boards and inspectors can audit any student's history with complete time-stamped proof.
+        </div>
+      </div>
+
+      <!-- SLIDE 9: Conclusion & Q&A -->
+      <div class="slide" data-slide="9" data-notes="Conclude the presentation. Summarize the key achievements: transformed paper-based chaos into an automated, transparent, tamper-proof attendance system. Open the floor for questions or live demo walkthroughs!">
+        <div style="text-align: center; margin: auto 0; padding: 20px 0;">
+          <div class="card-tag tag-green">MISSION COMPLETE</div>
+          <h1 class="slide-title" style="justify-content: center; font-size: 1.8rem; margin: 15px 0;">
+            THANK YOU / Q&A SESSION
+          </h1>
+          <h2 class="slide-subtitle" style="font-size: 1.05rem; color: var(--neon-cyan);">
+            School Attendance System — Ready for Live Demonstration
+          </h2>
+
+          <div class="retro-grid" style="max-width: 850px; margin: 20px auto; text-align: left;">
+            <div class="retro-card">
+              <span class="card-tag tag-amber">SUMMARY</span>
+              <div class="card-title">Key Takeaways</div>
+              <div class="card-body">
+                • 15 business rules eliminate ambiguity.<br>
+                • Real-time gate timestamping replaces guesswork.<br>
+                • 100% auditable lifecycle from request to report.
+              </div>
+            </div>
+
+            <div class="retro-card">
+              <span class="card-tag tag-cyan">DEMO READY</span>
+              <div class="card-title">Live Walkthrough</div>
+              <div class="card-body">
+                • Server running on <span class="code-pill">http://localhost:8080</span><br>
+                • Pre-seeded with realistic scenarios<br>
+                • Try Parent ➔ Admin ➔ Teacher ➔ SA workflow live!
+              </div>
+            </div>
+          </div>
+
+          <div class="terminal-output" style="max-width: 780px; margin: 15px auto; text-align: center;">
+            <span style="color: var(--neon-amber);">🕹️ INSERT COIN TO REPLAY</span> · ANY QUESTIONS OR DEMO REQUESTS?
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Presenter Notes Slide-out Panel -->
+    <div class="notes-panel" id="presenterNotesPanel">
+      <div class="notes-header">
+        <span>SPEAKER NOTES — SLIDE <span id="notesSlideNum">1</span></span>
+        <button class="btn-mini" onclick="toggleNotesPanel()" style="padding: 2px 6px;">✕</button>
+      </div>
+      <div class="notes-body" id="notesContent">
+        Welcome to the presentation!
+      </div>
+    </div>
+
+    <!-- Footer / Slide Navigation -->
+    <div class="footer-bar">
+      <div>
+        SLIDE <span id="currentSlideDisplay" style="color: var(--neon-amber);">01</span> / <span id="totalSlideDisplay">09</span>
+      </div>
+
+      <div class="footer-nav">
+        <button class="btn-retro" id="prevBtn" onclick="prevSlide()">◀ PREV</button>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressBar"></div>
+        </div>
+        <button class="btn-retro" id="nextBtn" onclick="nextSlide()">NEXT ▶</button>
+      </div>
+
+      <div>
+        <span class="key-hint">◄ / ►</span> NAV &nbsp;
+        <span class="key-hint">SPACE</span> NEXT &nbsp;
+        <span class="key-hint">N</span> NOTES
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Audio Synthesizer for Retro 8-bit SFX -->
+  <script>
+    let soundEnabled = true;
+    let audioCtx = null;
+
+    function playBeep(freq = 440, type = 'square', duration = 0.08) {
+      if (!soundEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        console.warn('Audio not allowed yet:', e);
+      }
+    }
+
+    // Presentation State
+    let currentSlide = 1;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    document.getElementById('totalSlideDisplay').innerText = String(totalSlides).padStart(2, '0');
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        if (idx + 1 === currentSlide) {
+          s.classList.add('active');
+          const notes = s.getAttribute('data-notes') || 'No speaker notes for this slide.';
+          document.getElementById('notesContent').innerText = notes;
+          document.getElementById('notesSlideNum').innerText = currentSlide;
+        } else {
+          s.classList.remove('active');
+        }
+      });
+
+      document.getElementById('currentSlideDisplay').innerText = String(currentSlide).padStart(2, '0');
+      const progressPercent = (currentSlide / totalSlides) * 100;
+      document.getElementById('progressBar').style.width = progressPercent + '%';
+
+      playBeep(currentSlide * 100 + 300, 'triangle', 0.06);
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+        updateSlide();
+      } else {
+        playBeep(200, 'sawtooth', 0.1);
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlide();
+      } else {
+        playBeep(200, 'sawtooth', 0.1);
+      }
+    }
+
+    function toggleNotesPanel() {
+      const panel = document.getElementById('presenterNotesPanel');
+      panel.classList.toggle('visible');
+      playBeep(600, 'square', 0.05);
+    }
+
+    // Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key.toLowerCase() === 'n') {
+        toggleNotesPanel();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullScreen();
+      } else if (e.key.toLowerCase() === 'c') {
+        document.body.classList.toggle('no-crt');
+        playBeep(520, 'sine', 0.05);
+      } else if (e.key.toLowerCase() === 's') {
+        soundEnabled = !soundEnabled;
+        document.getElementById('toggleSound').innerText = soundEnabled ? '🔊 SOUND [S]' : '🔇 MUTED [S]';
+      }
+    });
+
+    // Button Listeners
+    document.getElementById('toggleNotes').addEventListener('click', toggleNotesPanel);
+    document.getElementById('toggleCrt').addEventListener('click', () => {
+      document.body.classList.toggle('no-crt');
+      playBeep(500, 'sine', 0.05);
+    });
+    document.getElementById('toggleSound').addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      document.getElementById('toggleSound').innerText = soundEnabled ? '🔊 SOUND [S]' : '🔇 MUTED [S]';
+    });
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => console.log(err));
+      } else {
+        document.exitFullscreen().catch(err => console.log(err));
+      }
+      playBeep(700, 'square', 0.06);
+    }
+    document.getElementById('toggleFullscreen').addEventListener('click', toggleFullScreen);
+
+    // Interactive Flow Stepper Helper
+    function highlightFlow(step) {
+      playBeep(400 + step * 80, 'square', 0.08);
+      const items = document.querySelectorAll('.flow-step-item');
+      items.forEach((item, index) => {
+        if (index + 1 === step) {
+          item.classList.add('active-step');
+        } else {
+          item.classList.remove('active-step');
+        }
+      });
+
+      const term = document.getElementById('flowTerminalText');
+      const messages = [
+        "🔒 [RULE 9 & 10]: Admin pre-approves leave ➔ Row is pre-locked on teacher's screen ➔ Teacher cannot alter.",
+        "📋 [RULE 1 & 2]: Teacher only marks Present or Absent. Once submitted, session becomes locked and sends queue to SA.",
+        "⏱️ [RULE 3 & 4]: Student arrives at school gate ➔ SA marks arrived ➔ System calculates exact late minutes automatically.",
+        "🛡️ [RULE 13, 14 & 15]: Admin investigates unexcused absences. Excused or Absent W/O Permission determined with full audit log."
+      ];
+      term.innerHTML = messages[step - 1];
+    }
+
+    // Initialize
+    updateSlide();
+  </script>
+</body>
+</html>

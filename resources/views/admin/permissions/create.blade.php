@@ -37,37 +37,37 @@
 
         <div class="form-row">
             <div class="form-group">
-                <label for="attendance_date">Attendance date *</label>
+                <label for="attendance_date">Attendance date <span style="color: red;">*</span></label>
                 <input type="date" id="attendance_date" name="attendance_date" value="{{ old('attendance_date', now()->format('Y-m-d')) }}" required min="{{ now()->format('Y-m-d') }}">
                 @error('attendance_date')<div class="error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label for="requested_by">Requested by *</label>
+                <label for="requested_by">Requested by <span style="color: red;">*</span></label>
                 <input type="text" id="requested_by" name="requested_by" placeholder="e.g. Sok Dara (parent)" value="{{ old('requested_by') }}" required>
                 @error('requested_by')<div class="error">{{ $message }}</div>@enderror
             </div>
         </div>
 
         <div class="form-group">
-            <label for="reason">Reason *</label>
+            <label for="reason">Reason <span style="color: red;">*</span></label>
             <textarea id="reason" name="reason" rows="3" placeholder="e.g. Medical appointment" required>{{ old('reason') }}</textarea>
             @error('reason')<div class="error">{{ $message }}</div>@enderror
         </div>
 
         <div class="form-group">
-            <label for="evidence">Evidence (optional)</label>
+            <label for="evidence">Evidence <span style="color: #0362b6;">(optional)</span></label>
             <input type="file" id="evidence" name="evidence" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
             <div class="form-hint">Medical appointment document or any supporting file.</div>
             @error('evidence')<div class="error">{{ $message }}</div>@enderror
         </div>
 
         <div class="form-group">
-            <label for="admin_note">Admin note (optional)</label>
+            <label for="admin_note">Admin note <span style="color: #0362b6;">(optional)</span></label>
             <textarea id="admin_note" name="admin_note" rows="2" placeholder="Context for this request…">{{ old('admin_note') }}</textarea>
         </div>
 
         <button type="submit" class="btn">Create Request (Pending)</button>
-        <a href="{{ route('admin.permissions.index') }}" class="btn btn-sm btn-outline">Cancel</a>
+        <a href="{{ route('admin.permissions.index') }}" class="btn btn-sm btn-primary">Cancel</a>
     </form>
 </div>
 

@@ -15,6 +15,7 @@
     <table>
         <thead>
             <tr>
+                <th>N.O</th>
                 <th>Name</th>
                 <th>Grade</th>
                 <th>Teacher</th>
@@ -25,6 +26,7 @@
         <tbody>
             @forelse($classes as $class)
                 <tr>
+                    <td>{{ $loop->iteration }}</td>
                     <td><strong>{{ $class->name }}</strong></td>
                     <td>{{ $class->grade ?? '—' }}</td>
                     <td>{{ $class->teacher->name ?? '—' }}</td>

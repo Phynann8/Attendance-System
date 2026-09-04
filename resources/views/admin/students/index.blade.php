@@ -34,6 +34,7 @@
     <table>
         <thead>
             <tr>
+                <th>N.O</th>
                 <th>Name</th>
                 <th>Class</th>
                 <th>Parent</th>
@@ -45,6 +46,7 @@
         <tbody>
             @forelse($students as $student)
                 <tr>
+                    <td>{{ $loop->iteration + ($students->currentPage() - 1) * $students->perPage() }}</td>
                     <td><strong>{{ $student->name }}</strong></td>
                     <td>{{ $student->classRoom->name ?? '—' }}</td>
                     <td>{{ $student->parent_name ?? '—' }}</td>

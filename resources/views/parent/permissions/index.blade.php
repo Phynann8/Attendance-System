@@ -14,6 +14,7 @@
     <table>
         <thead>
             <tr>
+                <th>N.O</th>
                 <th>Student</th>
                 <th>Class</th>
                 <th>Date</th>
@@ -25,6 +26,7 @@
         <tbody>
             @forelse($permissions as $permission)
                 <tr>
+                    <td>{{ $loop->iteration }}</td>
                     <td><strong>{{ $permission->student->name }}</strong></td>
                     <td>{{ $permission->student->classRoom->name ?? '—' }}</td>
                     <td>{{ $permission->attendance_date->format('D, d M Y') }}</td>

@@ -35,13 +35,13 @@
         </div>
 
         <div class="form-group">
-            <label for="reason">Reason *</label>
+            <label for="reason">Reason <span style="color: #ff0505;">*</span></label>
             <textarea id="reason" name="reason" rows="3" placeholder="e.g. Medical appointment" required>{{ old('reason') }}</textarea>
             @error('reason')<div class="error">{{ $message }}</div>@enderror
         </div>
 
         <div class="form-group">
-            <label for="evidence">Evidence (optional)</label>
+            <label for="evidence">Evidence <span style="color: #2d09ce;">(optional)</span></label>
             <input type="file" id="evidence" name="evidence" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
             <div class="form-hint">e.g. medical appointment document.</div>
             @error('evidence')<div class="error">{{ $message }}</div>@enderror

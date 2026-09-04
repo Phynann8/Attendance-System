@@ -28,7 +28,7 @@ class StudentController extends Controller
         }
 
         return view('admin.students.index', [
-            'students' => $query->paginate(20)->withQueryString(),
+            'students' => $query->paginate(9)->withQueryString(),
         ]);
     }
 

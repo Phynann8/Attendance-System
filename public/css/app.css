@@ -485,6 +485,35 @@ textarea {
     border-color: var(--primary);
 }
 
+.pagination .summary {
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.pagination .pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.pagination a.page {
+    color: var(--text);
+    text-decoration: none;
+    background: #fff;
+}
+
+.pagination a.page:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.pagination .page.disabled {
+    color: var(--muted);
+    opacity: .6;
+}
+
 .empty {
     text-align: center;
     padding: 30px;

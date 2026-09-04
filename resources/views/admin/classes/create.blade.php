@@ -6,7 +6,7 @@
 <div class="page-title">Add Class</div>
 <div class="page-sub">Create a classroom and assign its homeroom teacher.</div>
 
-<div class="card" style="max-width:620px">
+<div class="card" style="max-width:620px; margin: auto;">
     <form method="POST" action="{{ route('admin.classes.store') }}">
         @csrf
         <div class="form-row">

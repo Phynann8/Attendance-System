@@ -18,7 +18,7 @@
                 @if($class->todaySession->status === 'open')
                     <a href="{{ route('teacher.attendance.mark', $class->todaySession) }}" class="btn btn-amber">Check today's attendance</a>
                 @elseif($class->todaySession->status === 'submitted')
-                    <a href="{{ route('teacher.attendance.mark', $class->todaySession) }}" class="btn btn-outline">View submitted attendance</a>
+                    <a href="{{ route('teacher.attendance.mark', $class->todaySession) }}" class="btn btn-green">View submitted attendance</a>
                 @else
                     <span class="badge badge-slate">Closed</span>
                 @endif

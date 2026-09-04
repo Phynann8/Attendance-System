@@ -13,6 +13,7 @@
     <table>
         <thead>
             <tr>
+                <th>N.O</th>
                 <th>Student</th>
                 <th>Class</th>
                 <th>Date</th>
@@ -25,6 +26,7 @@
         <tbody>
             @forelse($cases as $attendance)
                 <tr>
+                    <td>{{ $loop->iteration }}</td>
                     <td><strong>{{ $attendance->student->name }}</strong></td>
                     <td>{{ $attendance->student->classRoom->name ?? '—' }}</td>
                     <td>{{ $attendance->session->session_date->format('D, d M Y') }}</td>
@@ -38,11 +40,11 @@
                         @endif
                     </td>
                     <td>
-                        <a href="{{ route('admin.absence.show', $attendance) }}" class="btn btn-sm btn-hover:btn-primary">Review</a>
+                        <a href="{{ route('admin.absence.show', $attendance) }}" class="btn btn-sm btn-primary">Review</a>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7" class="empty">No absence cases awaiting your decision.</td></tr>
+                <tr><td colspan="8" class="empty">No absence cases awaiting your decision.</td></tr>
             @endforelse
         </tbody>
     </table>
