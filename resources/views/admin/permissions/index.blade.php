@@ -1,31 +1,44 @@
 @extends('layouts.app')
 
-@section('title', 'Permission Requests')
+@section('title', __('Permission Requests'))
 
 @section('content')
 <div class="flex-between">
     <div>
-        <div class="page-title">Review Permission Requests</div>
-        <div class="page-sub">Please Review student permissions requests before check student absent.</div>
+        <div class="page-title">{{ __('Review Permission Requests') }}</div>
+        <div class="page-sub">{{ __('Please Review student permissions requests before check student absent.') }}</div>
     </div>
-    <a href="{{ route('admin.permissions.create') }}" class="btn">+ Assign Permission</a>
+    <a href="{{ route('admin.permissions.create') }}" class="btn">+ {{ __('Assign Permission') }}</a>
 </div>
 
 <div class="card">
-    <form method="GET" id="filterForm" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;">
+    <form method="GET" id="filterForm" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px;">
+        @if(auth()->user()->isSuperAdmin() || !auth()->user()->campus_id)
+            <div class="form-group">
+                <label for="campus_id">{{ __('Campus') }}</label>
+                <select id="campus_id" name="campus_id" onchange="this.form.submit()">
+                    <option value="">{{ __('All Campuses') }}</option>
+                    @foreach($campuses as $campus)
+                        <option value="{{ $campus->id }}" @selected(request('campus_id') == $campus->id)>
+                            {{ $campus->code }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+        @endif
         <div class="form-group">
-            <label for="status">Status</label>
+            <label for="status">{{ __('Status') }}</label>
             <select id="status" name="status" onchange="this.form.submit()">
-                <option value="">All</option>
-                <option value="pending" @selected(request('status') === 'pending')>Pending</option>
-                <option value="approved" @selected(request('status') === 'approved')>Approved</option>
-                <option value="rejected" @selected(request('status') === 'rejected')>Rejected</option>
+                <option value="">{{ __('All') }}</option>
+                <option value="pending" @selected(request('status') === 'pending')>{{ __('Pending') }}</option>
+                <option value="approved" @selected(request('status') === 'approved')>{{ __('Approved') }}</option>
+                <option value="rejected" @selected(request('status') === 'rejected')>{{ __('Rejected') }}</option>
             </select>
         </div>
         <div class="form-group">
-            <label for="class_id">Class</label>
+            <label for="class_id">{{ __('Class') }}</label>
             <select id="class_id" name="class_id" onchange="filterStudentsByClass(); this.form.submit()">
-                <option value="">All classes</option>
+                <option value="">{{ __('All classes') }}</option>
                 @foreach($classes as $class)
                     <option value="{{ $class->id }}" @selected(request('class_id') == $class->id)>
                         {{ $class->name }}
@@ -34,9 +47,9 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="student_id">Student</label>
+            <label for="student_id">{{ __('Student') }}</label>
             <select id="student_id" name="student_id" onchange="this.form.submit()">
-                <option value="">All students</option>
+                <option value="">{{ __('All students') }}</option>
                 @foreach($students as $student)
                     <option value="{{ $student->id }}" data-class-id="{{ $student->class_id }}"
                             @selected(request('student_id') == $student->id)>
@@ -74,13 +87,13 @@
     <table>
         <thead>
             <tr>
-                <th>N.O</th>
-                <th>Student</th>
-                <th>Class</th>
-                <th>Date</th>
-                <th>Requested By</th>
-                <th>Reason</th>
-                <th>Status</th>
+                <th>{{ __('N.O') }}</th>
+                <th>{{ __('Student') }}</th>
+                <th>{{ __('Class') }}</th>
+                <th>{{ __('Date') }}</th>
+                <th>{{ __('Requested By') }}</th>
+                <th>{{ __('Reason') }}</th>
+                <th>{{ __('Status') }}</th>
                 <th></th>
             </tr>
         </thead>
@@ -97,11 +110,11 @@
                     <td>{{ $permission->reason }}</td>
                     <td><x-status-badge :status="$permission->status" /></td>
                     <td>
-                        <a href="{{ route('admin.permissions.show', $permission) }}" class="btn btn-sm btn-green">Review</a>
+                        <a href="{{ route('admin.permissions.show', $permission) }}" class="btn btn-sm btn-green">{{ __('Review') }}</a>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="7" class="empty">No permission requests found.</td></tr>
+                <tr><td colspan="8" class="empty">{{ __('No permission requests found.') }}</td></tr>
             @endforelse
         </tbody>
     </table>

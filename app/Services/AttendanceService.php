@@ -29,61 +29,67 @@ class AttendanceService
     {
         $dateString = ($date ?? Carbon::today())->format('Y-m-d');
 
-        $alreadyExists = AttendanceSession::query()
-            ->where('class_id', $class->id)
-            ->whereDate('session_date', $dateString)
-            ->exists();
-
-        if ($alreadyExists) {
-            throw new RuntimeException('An attendance session already exists for this class on this date.');
-        }
-
-        return DB::transaction(function () use ($class, $teacher, $dateString) {
-            $session = AttendanceSession::create([
-                'class_id' => $class->id,
-                'teacher_id' => $teacher->id,
-                'session_date' => $dateString,
-                'opened_at' => now(),
-                'status' => AttendanceSession::STATUS_OPEN,
-            ]);
-
-            $approvedPermissionIds = Permission::query()
-                ->where('status', Permission::STATUS_APPROVED)
-                ->whereDate('attendance_date', $dateString)
+        return CacheService::lock("session:open:{$class->id}:{$dateString}", 10)->block(5, function () use ($class, $teacher, $dateString) {
+            $alreadyExists = AttendanceSession::query()
                 ->where('class_id', $class->id)
-                ->pluck('id', 'student_id');
+                ->whereDate('session_date', $dateString)
+                ->exists();
 
-            foreach ($class->activeStudents()->get() as $student) {
-                $permissionId = $approvedPermissionIds->get($student->id);
-
-                $attendance = Attendance::create([
-                    'attendance_session_id' => $session->id,
-                    'student_id' => $student->id,
-                    'status' => $permissionId ? Attendance::STATUS_PERMISSION : null,
-                    'is_locked' => (bool) $permissionId,
-                    'locked_by' => $permissionId ? $teacher->id : null,
-                    'locked_at' => $permissionId ? now() : null,
-                    'lock_reason' => $permissionId ? 'Approved parent permission' : null,
-                    'permission_id' => $permissionId,
-                    'case_status' => Attendance::CASE_PENDING,
-                    'final_status' => $permissionId ? Attendance::FINAL_EXCUSED : null,
-                    'finalized_by' => $permissionId ? $teacher->id : null,
-                    'finalized_at' => $permissionId ? now() : null,
-                ]);
-
-                AuditService::log(
-                    $permissionId ? 'attendance.permission_locked' : 'attendance.record_created',
-                    $attendance->id,
-                );
+            if ($alreadyExists) {
+                throw new RuntimeException('An attendance session already exists for this class on this date.');
             }
 
-            AuditService::log('attendance.session_opened', user: $teacher, details: [
-                'class_id' => $class->id,
-                'class' => $class->name,
-                'date' => $dateString,
-            ]);
+            $session = DB::transaction(function () use ($class, $teacher, $dateString) {
+                $session = AttendanceSession::create([
+                    'class_id' => $class->id,
+                    'teacher_id' => $teacher->id,
+                    'session_date' => $dateString,
+                    'opened_at' => now(),
+                    'status' => AttendanceSession::STATUS_OPEN,
+                ]);
 
-            return $session->load('attendances.student', 'classRoom');
+                $approvedPermissionIds = Permission::query()
+                    ->where('status', Permission::STATUS_APPROVED)
+                    ->whereDate('attendance_date', $dateString)
+                    ->where('class_id', $class->id)
+                    ->pluck('id', 'student_id');
+
+                foreach ($class->activeStudents()->get() as $student) {
+                    $permissionId = $approvedPermissionIds->get($student->id);
+
+                    $attendance = Attendance::create([
+                        'attendance_session_id' => $session->id,
+                        'student_id' => $student->id,
+                        'status' => $permissionId ? Attendance::STATUS_PERMISSION : null,
+                        'is_locked' => (bool) $permissionId,
+                        'locked_by' => $permissionId ? $teacher->id : null,
+                        'locked_at' => $permissionId ? now() : null,
+                        'lock_reason' => $permissionId ? 'Approved parent permission' : null,
+                        'permission_id' => $permissionId,
+                        'case_status' => Attendance::CASE_PENDING,
+                        'final_status' => $permissionId ? Attendance::FINAL_EXCUSED : null,
+                        'finalized_by' => $permissionId ? $teacher->id : null,
+                        'finalized_at' => $permissionId ? now() : null,
+                    ]);
+
+                    AuditService::log(
+                        $permissionId ? 'attendance.permission_locked' : 'attendance.record_created',
+                        $attendance->id,
+                    );
+                }
+
+                AuditService::log('attendance.session_opened', user: $teacher, details: [
+                    'class_id' => $class->id,
+                    'class' => $class->name,
+                    'date' => $dateString,
+                ]);
+
+                return $session->load('attendances.student', 'classRoom');
+            });
+
+            CacheService::invalidateAttendanceCache($class->id, $dateString);
+
+            return $session;
         });
     }
 
@@ -132,6 +138,8 @@ class AttendanceService
                 ]);
             });
         });
+
+        CacheService::invalidateAttendanceCache($session->class_id);
     }
 
     /**
@@ -139,41 +147,91 @@ class AttendanceService
      */
     public static function submitSession(AttendanceSession $session, User $teacher): void
     {
-        if ($session->status !== AttendanceSession::STATUS_OPEN) {
-            throw new RuntimeException('This session was already submitted.');
-        }
+        CacheService::lock("session:submit:{$session->id}", 10)->block(5, function () use ($session, $teacher) {
+            if ($session->status !== AttendanceSession::STATUS_OPEN) {
+                throw new RuntimeException('This session was already submitted.');
+            }
 
-        $unmarked = $session->attendances()
-            ->where('is_locked', false)
-            ->whereNull('status')
-            ->with('student')
-            ->get();
+            $unmarked = $session->attendances()
+                ->where('is_locked', false)
+                ->whereNull('status')
+                ->with('student')
+                ->get();
 
-        if ($unmarked->isNotEmpty()) {
-            $names = $unmarked->map(fn ($a) => $a->student->name)->implode(', ');
-            throw new RuntimeException('Not all students are marked yet: '.$names);
-        }
+            if ($unmarked->isNotEmpty()) {
+                $names = $unmarked->map(fn ($a) => $a->student->name)->implode(', ');
+                throw new RuntimeException('Not all students are marked yet: '.$names);
+            }
 
-        $session->update([
-            'status' => AttendanceSession::STATUS_SUBMITTED,
-            'submitted_at' => now(),
-        ]);
-
-        // Present is final the moment the teacher submits (the day is over for them).
-        $session->attendances()
-            ->where('is_locked', false)
-            ->where('status', Attendance::STATUS_PRESENT)
-            ->whereNull('final_status')
-            ->update([
-                'final_status' => Attendance::FINAL_PRESENT,
-                'finalized_by' => $teacher->id,
-                'finalized_at' => now(),
+            $session->update([
+                'status' => AttendanceSession::STATUS_SUBMITTED,
+                'submitted_at' => now(),
             ]);
 
-        AuditService::log('attendance.submitted', user: $teacher, details: [
-            'session_id' => $session->id,
-            'session_date' => $session->session_date->format('Y-m-d'),
-        ]);
+            // Present is final the moment the teacher submits (the day is over for them).
+            $session->attendances()
+                ->where('is_locked', false)
+                ->where('status', Attendance::STATUS_PRESENT)
+                ->whereNull('final_status')
+                ->update([
+                    'final_status' => Attendance::FINAL_PRESENT,
+                    'finalized_by' => $teacher->id,
+                    'finalized_at' => now(),
+                ]);
+
+            AuditService::log('attendance.submitted', user: $teacher, details: [
+                'session_id' => $session->id,
+                'session_date' => $session->session_date->format('Y-m-d'),
+            ]);
+
+            CacheService::invalidateAttendanceCache($session->class_id);
+        });
+    }
+
+    /**
+     * Admin: Reopen a submitted attendance session for amendment.
+     * Reverts session status to 'open' and resets unfinalized student records
+     * so teacher or admin can correct marks.
+     * Locked records (approved parent permissions) remain strictly locked.
+     */
+    public static function reopenSession(AttendanceSession $session, User $admin, string $reason): AttendanceSession
+    {
+        if ($session->status !== AttendanceSession::STATUS_SUBMITTED && $session->status !== AttendanceSession::STATUS_CLOSED) {
+            throw new RuntimeException('Only submitted or closed sessions can be reopened.');
+        }
+
+        if (trim($reason) === '') {
+            throw new RuntimeException('A mandatory audit reason is required to reopen an attendance session.');
+        }
+
+        return DB::transaction(function () use ($session, $admin, $reason) {
+            $session->update([
+                'status' => AttendanceSession::STATUS_OPEN,
+                'submitted_at' => null,
+            ]);
+
+            // Revert present records that were auto-finalized upon submission
+            $session->attendances()
+                ->where('is_locked', false)
+                ->where('final_status', Attendance::FINAL_PRESENT)
+                ->update([
+                    'final_status' => null,
+                    'finalized_by' => null,
+                    'finalized_at' => null,
+                ]);
+
+            AuditService::log('attendance.session_reopened', user: $admin, details: [
+                'session_id' => $session->id,
+                'class_id' => $session->class_id,
+                'session_date' => $session->session_date->format('Y-m-d'),
+                'reason' => $reason,
+                'reopened_by' => $admin->name,
+            ]);
+
+            CacheService::invalidateAttendanceCache($session->class_id);
+
+            return $session->fresh();
+        });
     }
 
     /**
@@ -214,6 +272,8 @@ class AttendanceService
             'arrived_at' => $arrivedAt->format('H:i'),
             'minutes_late' => $minutesLate,
         ]);
+
+        CacheService::invalidateAttendanceCache($attendance->session?->class_id);
     }
 
     /**
@@ -236,6 +296,8 @@ class AttendanceService
         ]);
 
         AuditService::log('attendance.escalated_to_admin', $attendance->id);
+
+        CacheService::invalidateAttendanceCache($attendance->session?->class_id);
     }
 
     /**
@@ -279,6 +341,8 @@ class AttendanceService
                 'reason' => $reason,
             ]);
 
+            CacheService::invalidateAttendanceCache($attendance->session?->class_id);
+
             return $permission;
         });
     }
@@ -305,6 +369,8 @@ class AttendanceService
         AuditService::log('attendance.absent_without_permission', $attendance->id, details: [
             'note' => $note,
         ]);
+
+        CacheService::invalidateAttendanceCache($attendance->session?->class_id);
     }
 
     /**
@@ -335,6 +401,8 @@ class AttendanceService
         AuditService::log('attendance.excused_existing_permission', $attendance->id, $permission->id, details: [
             'note' => $attendance->admin_note,
         ]);
+
+        CacheService::invalidateAttendanceCache($attendance->session?->class_id);
     }
 
     /**
@@ -389,6 +457,8 @@ class AttendanceService
                 'student_id' => $permission->student_id,
                 'date' => $permission->attendance_date->format('Y-m-d'),
             ]);
+
+            CacheService::invalidateAttendanceCache($permission->class_id);
         });
 
         return $permission->fresh();
@@ -414,6 +484,8 @@ class AttendanceService
             'student_id' => $permission->student_id,
             'date' => $permission->attendance_date->format('Y-m-d'),
         ]);
+
+        CacheService::invalidateAttendanceCache($permission->class_id);
 
         return $permission->fresh();
     }

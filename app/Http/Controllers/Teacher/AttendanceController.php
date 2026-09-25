@@ -38,7 +38,16 @@ class AttendanceController extends Controller
 
     public function mark(AttendanceSession $session, Request $request)
     {
-        abort_unless($session->teacher_id === $request->user()->id, 403);
+        $user = $request->user();
+        abort_unless(
+            $session->teacher_id === $user->id || $user->isAdmin() || $user->isSuperAdmin(),
+            403
+        );
+
+        $userCampusId = $user->activeCampusId();
+        if ($userCampusId && $session->classRoom->campus_id && (int) $session->classRoom->campus_id !== $userCampusId) {
+            abort(403, 'You do not have permission to view attendance for a class from another campus.');
+        }
 
         $session->load(['attendances.student', 'attendances.permission', 'classRoom']);
 

@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class AttendanceSession extends Model
 {
     public const STATUS_OPEN = 'open';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_CLOSED = 'closed';
 
     protected $fillable = [
@@ -33,6 +35,15 @@ class AttendanceSession extends Model
     public function classRoom(): BelongsTo
     {
         return $this->belongsTo(ClassRoom::class, 'class_id');
+    }
+
+    public function scopeForCampus($query, ?int $campusId)
+    {
+        if ($campusId !== null) {
+            return $query->whereHas('classRoom', fn ($q) => $q->where('campus_id', $campusId));
+        }
+
+        return $query;
     }
 
     public function teacher(): BelongsTo

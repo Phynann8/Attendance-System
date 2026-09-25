@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('requested_by');             // e.g. "Sok Dara (parent)"
             $table->enum('requested_by_type', ['parent', 'admin'])->default('parent');
             $table->string('reason');                   // e.g. "Medical appointment"
-            $table->string('evidence_path')->nullable();// uploaded supporting document
+            $table->string('evidence_path')->nullable(); // uploaded supporting document
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('approved_at')->nullable();

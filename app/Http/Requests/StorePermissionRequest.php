@@ -17,6 +17,8 @@ class StorePermissionRequest extends FormRequest
             'student_id' => ['required', 'exists:students,id'],
             'attendance_date' => ['required', 'date', 'after_or_equal:today'],
             'reason' => ['required', 'string', 'max:500'],
+            'category' => ['nullable', 'string', 'in:medical,family_emergency,official_activity,bereavement,unexcused,other'],
+            'detail_description' => ['nullable', 'string', 'max:2000'],
             // The admin form sends "requested_by" explicitly; parents never send it
             // because the parent controller derives it from the authenticated user.
             'requested_by' => $this->user()?->isAdmin()

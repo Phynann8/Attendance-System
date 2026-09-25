@@ -20,11 +20,17 @@ class ParentPermissionTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $parent;
+
     private User $otherParent;
+
     private ClassRoom $class;
+
     private Student $myChild;
+
     private Student $mySecondChild;
+
     private Student $otherChild;
 
     protected function setUp(): void
@@ -63,7 +69,9 @@ class ParentPermissionTest extends TestCase
         $response = $this->actingAs($this->parent)->post(route('parent.permissions.store'), [
             'student_id' => $this->myChild->id,
             'attendance_date' => $this->futureDate(),
+            'category' => Permission::CATEGORY_MEDICAL,
             'reason' => 'Medical appointment',
+            'detail_description' => 'Specialist appointment at Children Hospital for regular allergy screening.',
         ]);
 
         $response->assertRedirect(route('parent.permissions.index'))
@@ -72,6 +80,8 @@ class ParentPermissionTest extends TestCase
         $permission = Permission::where('student_id', $this->myChild->id)->first();
         $this->assertNotNull($permission);
         $this->assertSame(Permission::STATUS_PENDING, $permission->status);
+        $this->assertSame(Permission::CATEGORY_MEDICAL, $permission->category);
+        $this->assertSame('Specialist appointment at Children Hospital for regular allergy screening.', $permission->detail_description);
         $this->assertSame($this->parent->name, $permission->requested_by);
         $this->assertSame(Permission::REQUESTED_BY_PARENT, $permission->requested_by_type);
     }

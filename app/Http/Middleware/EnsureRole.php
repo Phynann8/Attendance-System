@@ -9,9 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureRole
 {
     /**
-     * Allow only users whose role is in the provided list.
-     *
-     * @param  string  ...$roles
+     * Allow only users whose role is in the provided list, super admins,
+     * or custom roles with matching module permissions.
      */
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
@@ -21,10 +20,31 @@ class EnsureRole
             return redirect()->route('login');
         }
 
-        if (! in_array($user->role, $roles, true)) {
-            abort(403, 'You do not have permission to access this page.');
+        if (! $user->is_active) {
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->with('error', 'Your account is inactive. Please contact an administrator.');
         }
 
-        return $next($request);
+        // Super Admin has access across the system
+        if ($user->isSuperAdmin()) {
+            return $next($request);
+        }
+
+        // Direct role match
+        if (in_array($user->role, $roles, true)) {
+            return $next($request);
+        }
+
+        // Custom role module permission check
+        foreach ($roles as $role) {
+            if ($user->hasPermission("module.{$role}") || $user->hasPermission($role)) {
+                return $next($request);
+            }
+        }
+
+        abort(403, 'You do not have permission to access this page.');
     }
 }

@@ -9,16 +9,23 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Attendance extends Model
 {
     public const STATUS_PRESENT = 'present';
+
     public const STATUS_ABSENT = 'absent';
+
     public const STATUS_PERMISSION = 'permission';
 
     public const CASE_PENDING = 'pending';
+
     public const CASE_CLOSED = 'closed';
+
     public const CASE_ESCALATED = 'escalated';
 
     public const FINAL_PRESENT = 'present';
+
     public const FINAL_LATE = 'late';
+
     public const FINAL_EXCUSED = 'excused';
+
     public const FINAL_ABSENT_WITHOUT_PERMISSION = 'absent_without_permission';
 
     protected $fillable = [
@@ -58,6 +65,15 @@ class Attendance extends Model
     public function session(): BelongsTo
     {
         return $this->belongsTo(AttendanceSession::class, 'attendance_session_id');
+    }
+
+    public function scopeForCampus($query, ?int $campusId)
+    {
+        if ($campusId !== null) {
+            return $query->whereHas('student', fn ($q) => $q->where('campus_id', $campusId));
+        }
+
+        return $query;
     }
 
     public function student(): BelongsTo

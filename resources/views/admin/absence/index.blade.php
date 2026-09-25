@@ -1,26 +1,26 @@
 @extends('layouts.app')
 
-@section('title', 'Absence Review')
+@section('title', __('Absence Review'))
 
 @section('content')
-<div class="page-title">Absence Review</div>
+<div class="page-title">{{ __('Absence Review') }}</div>
 <div class="page-sub">
-    Please check Students marked <span class="badge badge-red">Absent</span> by the teacher with
-    Student Affairs for verification.
+    {{ __('Please check students marked') }} <span class="badge badge-red">{{ __('Absent') }}</span>
+    {{ __('by the teacher with Student Affairs for verification.') }}
 </div>
 
 <div class="card">
     <table>
         <thead>
             <tr>
-                <th>N.O</th>
-                <th>Student</th>
-                <th>Class</th>
-                <th>Date</th>
-                <th>Teacher Attendance</th>
-                <th>Student Affairs</th>
-                <th>Existing Permission</th>
-                <th>Review</th>
+                <th>{{ __('N.O') }}</th>
+                <th>{{ __('Student') }}</th>
+                <th>{{ __('Class') }}</th>
+                <th>{{ __('Date') }}</th>
+                <th>{{ __('Teacher Attendance') }}</th>
+                <th>{{ __('Student Affairs') }}</th>
+                <th>{{ __('Existing Permission') }}</th>
+                <th>{{ __('Review') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -31,20 +31,20 @@
                     <td>{{ $attendance->student->classRoom->name ?? '—' }}</td>
                     <td>{{ $attendance->session->session_date->format('D, d M Y') }}</td>
                     <td><x-status-badge status="absent" /></td>
-                    <td><span class="badge badge-red">Did not arrive</span></td>
+                    <td><span class="badge badge-red">{{ __('Did not arrive') }}</span></td>
                     <td>
                         @if($attendance->permission)
                             <x-status-badge status="approved" />
                         @else
-                            <span class="muted">None</span>
+                            <span class="muted">{{ __('None') }}</span>
                         @endif
                     </td>
                     <td>
-                        <a href="{{ route('admin.absence.show', $attendance) }}" class="btn btn-sm btn-primary">Review</a>
+                        <a href="{{ route('admin.absence.show', $attendance) }}" class="btn btn-sm btn-primary">{{ __('Review') }}</a>
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="empty">No absence cases awaiting your decision.</td></tr>
+                <tr><td colspan="8" class="empty">{{ __('No absence cases awaiting your decision.') }}</td></tr>
             @endforelse
         </tbody>
     </table>

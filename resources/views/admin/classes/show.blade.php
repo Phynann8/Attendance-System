@@ -5,19 +5,19 @@
 @section('content')
 <div class="flex-between">
     <div>
-        <div class="page-title">Class {{ $class->name }}</div>
+        <div class="page-title">{{ __('Class') }} {{ $class->name }}</div>
         <div class="page-sub">
-            {{ $class->grade ?? '—' }} · Teacher: {{ $class->teacher->name ?? '—' }}
+            {{ $class->grade ?? '—' }} · {{ __('Teacher') }}: {{ $class->teacher->name ?? '—' }}
         </div>
     </div>
-    <a href="{{ route('admin.classes.index') }}" class="btn btn-primary btn-sm">← Back</a>
+    <a href="{{ route('admin.classes.index') }}" class="btn btn-primary btn-sm">← {{ __('Back') }}</a>
 </div>
 
 <div class="card">
-    <h2>Students ({{ $class->students->count() }})</h2>
+    <h2>{{ __('Students') }} ({{ $class->students->count() }})</h2>
     <table>
         <thead>
-            <tr><th>#</th><th>Student</th><th>Parent</th><th></th></tr>
+            <tr><th>{{ __('N.O') }}</th><th>{{ __('Student') }}</th><th>{{ __('Parent') }}</th><th></th></tr>
         </thead>
         <tbody>
             @forelse($class->students as $student)
@@ -25,29 +25,29 @@
                     <td>{{ $loop->iteration }}</td>
                     <td><strong>{{ $student->name }}</strong></td>
                     <td>{{ $student->parent_name ?? '—' }}</td>
-                    <td><a href="{{ route('admin.students.show', $student) }}" class="btn btn-sm btn-primary">View</a></td>
+                    <td><a href="{{ route('admin.students.show', $student) }}" class="btn btn-sm btn-primary">{{ __('View') }}</a></td>
                 </tr>
             @empty
-                <tr><td colspan="4" class="empty">No students in this class yet.</td></tr>
+                <tr><td colspan="4" class="empty">{{ __('No students in this class yet.') }}</td></tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
 <div class="card">
-    <h2>Attendance sessions</h2>
+    <h2>{{ __('Attendance Sessions') }}</h2>
     <table>
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Opened</th>
-                <th>Submitted</th>
-                <th>Status</th>
-                <th>Present</th>
-                <th>Absent</th>
-                <th>Permission</th>
-                <th>Late</th>
-                <th>Excused</th>
+                <th>{{ __('Date') }}</th>
+                <th>{{ __('Opened') }}</th>
+                <th>{{ __('Submitted') }}</th>
+                <th>{{ __('Status') }}</th>
+                <th>{{ __('Present') }}</th>
+                <th>{{ __('Absent') }}</th>
+                <th>{{ __('Permission') }}</th>
+                <th>{{ __('Late') }}</th>
+                <th>{{ __('Excused') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -67,7 +67,7 @@
                     <td class="text-green">{{ $stats['excused'] ?? 0 }}</td>
                 </tr>
             @empty
-                <tr><td colspan="10" class="empty">No attendance sessions yet.</td></tr>
+                <tr><td colspan="10" class="empty">{{ __('No attendance sessions yet.') }}</td></tr>
             @endforelse
         </tbody>
     </table>

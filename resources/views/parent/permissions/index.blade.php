@@ -1,26 +1,26 @@
 @extends('layouts.app')
 
-@section('title', 'My Permission Requests')
+@section('title', __('My Permission Requests'))
 
 @section('content')
 <div class="flex-between">
     <div>
-        <div class="page-title">Permission Request</div>
+        <div class="page-title">{{ __('Permission Request') }}</div>
     </div>
-    <a href="{{ route('parent.permissions.create') }}" class="btn">+ Request Permission</a>
+    <a href="{{ route('parent.permissions.create') }}" class="btn">+ {{ __('Request Permission') }}</a>
 </div>
 
 <div class="card">
     <table>
         <thead>
             <tr>
-                <th>N.O</th>
-                <th>Student</th>
-                <th>Class</th>
-                <th>Date</th>
-                <th>Reason</th>
-                <th>Requested at</th>
-                <th>Status</th>
+                <th>{{ __('N.O') }}</th>
+                <th>{{ __('Student') }}</th>
+                <th>{{ __('Class') }}</th>
+                <th>{{ __('Date') }}</th>
+                <th>{{ __('Reason') }}</th>
+                <th>{{ __('Requested at') }}</th>
+                <th>{{ __('Status') }}</th>
             </tr>
         </thead>
         <tbody>
@@ -35,12 +35,12 @@
                     <td>
                         <x-status-badge :status="$permission->status" />
                         @if($permission->status === 'approved' && $permission->approver)
-                            <div class="small muted">by {{ $permission->approver->name }}</div>
+                            <div class="small muted">{{ __('by') }} {{ $permission->approver->name }}</div>
                         @endif
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="6" class="empty">No permission requests.</td></tr>
+                <tr><td colspan="7" class="empty">{{ __('No permission requests.') }}</td></tr>
             @endforelse
         </tbody>
     </table>

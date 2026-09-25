@@ -14,13 +14,19 @@ class AbsenceReviewController extends Controller
      * Students who were marked Absent, did not arrive (Student Affairs escalated
      * the case) and have no final decision yet. Rule 6 - Admin acts on these only.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $cases = Attendance::with(['student.classRoom', 'session.classRoom', 'permission'])
+        $userCampusId = $request->user()->activeCampusId();
+        $query = Attendance::with(['student.classRoom', 'session.classRoom', 'permission'])
             ->where('status', Attendance::STATUS_ABSENT)
             ->where('case_status', Attendance::CASE_ESCALATED)
-            ->whereNull('final_status')
-            ->get()
+            ->whereNull('final_status');
+
+        if ($userCampusId) {
+            $query->forCampus($userCampusId);
+        }
+
+        $cases = $query->get()
             ->sortByDesc(fn (Attendance $a) => $a->session->session_date->format('Y-m-d'));
 
         $existingPermissionCount = Permission::where('status', Permission::STATUS_APPROVED)
@@ -30,8 +36,13 @@ class AbsenceReviewController extends Controller
         return view('admin.absence.index', compact('cases', 'existingPermissionCount'));
     }
 
-    public function show(Attendance $attendance)
+    public function show(Attendance $attendance, Request $request)
     {
+        $userCampusId = $request->user()->activeCampusId();
+        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+            abort(403, 'You do not have permission to view cases from another campus.');
+        }
+
         $attendance->load(['student.classRoom', 'session.classRoom', 'session.teacher', 'permission']);
 
         $existingPermissions = Permission::with(['approver', 'rejecter'])
@@ -44,6 +55,10 @@ class AbsenceReviewController extends Controller
 
     public function decide(Request $request, Attendance $attendance)
     {
+        $userCampusId = $request->user()->activeCampusId();
+        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+            abort(403, 'You do not have permission to decide cases from another campus.');
+        }
         $request->validate([
             'decision' => ['required', 'in:excused,absent_without_permission'],
             'permission_id' => ['nullable', 'exists:permissions,id'],

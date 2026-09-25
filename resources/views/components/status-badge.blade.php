@@ -9,7 +9,7 @@
         // teacher / final statuses
         'present' => 'badge-green',
         'absent' => 'badge-red',
-        'permission' => 'badge-violet',
+        'permission' => 'badge-blue',
         'late' => 'badge-amber',
         'excused' => 'badge-blue',
         'absent_without_permission' => 'badge-red',
@@ -23,7 +23,7 @@
         'escalated' => 'badge-red',
     ];
     $color = $map[$status] ?? 'badge';
-    $label = $label ?? ucfirst(str_replace('_', ' ', $status ?? ''));
+    $label = $label ?? __(ucfirst(str_replace('_', ' ', $status ?? '')));
 @endphp
 
 <span class="badge {{ $color }}">{{ $label }}</span>

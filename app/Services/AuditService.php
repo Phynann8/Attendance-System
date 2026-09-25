@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\LogAuditEventJob;
 use App\Models\AttendanceLog;
 use App\Models\User;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -28,5 +29,28 @@ class AuditService
             'action' => $action,
             'details' => is_array($details) ? json_encode($details, JSON_UNESCAPED_UNICODE) : $details,
         ]);
+    }
+
+    /**
+     * Dispatch an audit log entry asynchronously via background queue.
+     */
+    public static function dispatch(
+        string $action,
+        ?int $attendanceId = null,
+        ?int $permissionId = null,
+        ?User $user = null,
+        array|string|null $details = null,
+    ): void {
+        $actor = $user ?? Auth::user();
+        $userId = $actor instanceof Authenticatable ? $actor->getAuthIdentifier() : null;
+        $detailsPayload = is_array($details) ? json_encode($details, JSON_UNESCAPED_UNICODE) : $details;
+
+        LogAuditEventJob::dispatch(
+            $action,
+            $attendanceId,
+            $permissionId,
+            $userId,
+            $detailsPayload
+        );
     }
 }

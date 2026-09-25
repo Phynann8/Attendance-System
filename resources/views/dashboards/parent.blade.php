@@ -1,20 +1,20 @@
 @extends('layouts.app')
 
-@section('title', 'Parent Dashboard')
+@section('title', __('Parent Dashboard'))
 
 @section('content')
 <div class="flex-between">
     <div>
-        <div class="page-title">Parent Dashboard</div>
+        <div class="page-title">{{ __('Parent Dashboard') }}</div>
     </div>
-    <a href="{{ route('parent.permissions.create') }}" class="btn">+ Request Permission</a>
+    <a href="{{ route('parent.permissions.create') }}" class="btn">+ {{ __('Request Permission') }}</a>
 </div>
 
 <div class="card">
-    <h2>Students Attendance</h2>
+    <h2>{{ __('Students Attendance') }}</h2>
     <table>
         <thead>
-            <tr><th>Student Name</th><th>Class</th><th>Attendance</th><th>Status</th></tr>
+            <tr><th>{{ __('Student Name') }}</th><th>{{ __('Class') }}</th><th>{{ __('Attendance') }}</th><th>{{ __('Status') }}</th></tr>
         </thead>
         <tbody>
             @forelse($students as $student)
@@ -25,9 +25,9 @@
                     <td>
                         @if($today)
                             <x-status-badge :status="$today->status" />
-                            @if($today->is_locked) <span class="lock-icon">🔒</span> @endif
+                            @if($today->is_locked) <span class="lock-icon" title="{{ __('Locked by Approved Permission') }}"><i class="fa-solid fa-lock"></i></span> @endif
                         @else
-                            <span class="muted">No Record</span>
+                            <span class="muted">{{ __('No Record') }}</span>
                         @endif
                     </td>
                     <td>
@@ -39,17 +39,17 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="4" class="empty">No Students linked to this account.</td></tr>
+                <tr><td colspan="4" class="empty">{{ __('No Students linked to this account.') }}</td></tr>
             @endforelse
         </tbody>
     </table>
 </div>
 
 <div class="card">
-    <h2>Permission Request History</h2>
+    <h2>{{ __('Permission Request History') }}</h2>
     <table>
         <thead>
-            <tr><th>Student Name</th><th>Date</th><th>Reason</th><th>Status</th></tr>
+            <tr><th>{{ __('Student Name') }}</th><th>{{ __('Date') }}</th><th>{{ __('Reason') }}</th><th>{{ __('Status') }}</th></tr>
         </thead>
         <tbody>
             @forelse($permissions as $permission)
@@ -60,7 +60,7 @@
                     <td><x-status-badge :status="$permission->status" /></td>
                 </tr>
             @empty
-                <tr><td colspan="4" class="empty">No permission requests yet.</td></tr>
+                <tr><td colspan="4" class="empty">{{ __('No permission requests yet.') }}</td></tr>
             @endforelse
         </tbody>
     </table>

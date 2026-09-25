@@ -68,11 +68,11 @@
                 @csrf
                 <input type="hidden" name="decision" value="excused">
                 <div class="form-group">
-                    <label for="requested_by">Requested by (parent)<span style="color: red;">*</span></label>
+                    <label for="requested_by">Requested by (parent) <span class="required">*</span></label>
                     <input id="requested_by" name="requested_by" placeholder="e.g. Sok Dara (parent)" value="{{ $attendance->student->parent_name }}">
                 </div>
                 <div class="form-group">
-                    <label for="reason">Absence Reason <span style="color: red;">*</span></label>
+                    <label for="reason">Absence Reason <span class="required">*</span></label>
                     <input id="reason" name="reason" placeholder="e.g.sick">
                 </div>
                 <div class="form-group">

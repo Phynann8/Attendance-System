@@ -44,6 +44,8 @@ class PermissionController extends Controller
             'requested_by' => $request->user()->name,
             'requested_by_type' => Permission::REQUESTED_BY_PARENT,
             'reason' => $data['reason'],
+            'category' => $data['category'] ?? Permission::CATEGORY_OTHER,
+            'detail_description' => $data['detail_description'] ?? null,
             'evidence_path' => $request->hasFile('evidence')
                 ? $request->file('evidence')->store('permissions/evidence', 'public')
                 : null,

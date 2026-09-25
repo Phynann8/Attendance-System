@@ -6,28 +6,39 @@ use App\Models\Attendance;
 use App\Models\AttendanceSession;
 use App\Models\ClassRoom;
 use App\Models\Permission;
+use App\Models\Role;
+use App\Models\SchoolSetting;
 use App\Models\Student;
+use App\Models\SystemPermission;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
+    private User $superAdmin;
+
     private User $admin;
+
     private User $teacher;
+
     private User $affairs;
+
     private User $parent;
 
     private ClassRoom $classA;
 
     public function run(): void
     {
-        if (User::where('email', 'admin@school.test')->exists()) {
-            $this->command?->info('Demo data already present — skipping seeder.');
+        $this->seedSchoolSettings();
+
+        if (User::where('email', 'admin@school.test')->exists() || Student::whereNotNull('psis_student_id')->exists()) {
+            $this->command?->info('System or PSIS data already present — skipping mock demo data seeding.');
 
             return;
         }
 
+        $this->seedRolesAndPermissions();
         $this->seedUsers();
         $this->seedClassesAndStudents();
         $this->seedYesterdayWorkflow();
@@ -36,19 +47,153 @@ class DatabaseSeeder extends Seeder
         $this->command?->info('Demo data seeded.');
     }
 
+    private function seedSchoolSettings(): void
+    {
+        $defaults = [
+            'school_name' => ['value' => 'Attendance System Academy', 'group' => 'general', 'description' => 'Official school name displayed on headers and reports.'],
+            'school_phone' => ['value' => '+855 12 345 678', 'group' => 'general', 'description' => 'School office contact phone number.'],
+            'school_email' => ['value' => 'admin@school.test', 'group' => 'general', 'description' => 'Official administrative email address.'],
+            'academic_year' => ['value' => '2026-2027', 'group' => 'academic', 'description' => 'Current active academic year.'],
+            'academic_term' => ['value' => 'Semester 1', 'group' => 'academic', 'description' => 'Current academic semester or term.'],
+            'class_start_time' => ['value' => '08:00', 'group' => 'attendance', 'description' => 'Standard morning class commencement time (HH:MM).'],
+            'late_grace_minutes' => ['value' => '15', 'group' => 'attendance', 'description' => 'Grace period in minutes before counting arrival as late.'],
+        ];
+
+        foreach ($defaults as $key => $data) {
+            SchoolSetting::firstOrCreate(['key' => $key], $data);
+        }
+    }
+
+    private function seedRolesAndPermissions(): void
+    {
+        // 1. Create System Roles
+        $superAdminRole = Role::firstOrCreate(
+            ['slug' => User::ROLE_SUPER_ADMIN],
+            ['name' => 'Super Administrator', 'description' => 'Full unrestricted platform access and governance.', 'is_system' => true]
+        );
+
+        $adminRole = Role::firstOrCreate(
+            ['slug' => User::ROLE_ADMIN],
+            ['name' => 'Administrator', 'description' => 'School administration, absence decisions, and approvals.', 'is_system' => true]
+        );
+
+        $teacherRole = Role::firstOrCreate(
+            ['slug' => User::ROLE_TEACHER],
+            ['name' => 'Teacher', 'description' => 'Homeroom class attendance marking and session submission.', 'is_system' => true]
+        );
+
+        $affairsRole = Role::firstOrCreate(
+            ['slug' => User::ROLE_STUDENT_AFFAIRS],
+            ['name' => 'Student Affairs', 'description' => 'Verification of absent students and late arrival logging.', 'is_system' => true]
+        );
+
+        $parentRole = Role::firstOrCreate(
+            ['slug' => User::ROLE_PARENT],
+            ['name' => 'Parent', 'description' => 'Parent portal for absence requests and history.', 'is_system' => true]
+        );
+
+        // 2. Create System Module Permissions
+        $permissions = [
+            // Super Admin
+            ['name' => 'Manage Users', 'slug' => 'users.manage', 'module' => 'Super Admin', 'description' => 'Create, edit, inactivate, soft-delete users, and assign roles.'],
+            ['name' => 'Manage Roles & Permissions', 'slug' => 'roles.manage', 'module' => 'Super Admin', 'description' => 'Create custom roles and configure permitted modules.'],
+            // Administration
+            ['name' => 'Review & Assign Permissions', 'slug' => 'admin.permissions', 'module' => 'Administration', 'description' => 'Review parent permission requests and assign leaves.'],
+            ['name' => 'Review Absence Cases', 'slug' => 'admin.absence', 'module' => 'Administration', 'description' => 'Review escalated absences and record final decisions.'],
+            ['name' => 'Manage Students', 'slug' => 'admin.students', 'module' => 'Administration', 'description' => 'Manage student rosters and profiles.'],
+            ['name' => 'Manage Classes', 'slug' => 'admin.classes', 'module' => 'Administration', 'description' => 'Manage classroom configurations.'],
+            ['name' => 'View Reports', 'slug' => 'admin.reports', 'module' => 'Administration', 'description' => 'View school attendance metrics and historical summaries.'],
+            // Teacher
+            ['name' => 'Take Attendance', 'slug' => 'teacher.attendance', 'module' => 'Teacher', 'description' => 'Open sessions and record student attendance.'],
+            // Student Affairs
+            ['name' => 'Verify Late / Absences', 'slug' => 'student_affairs.review', 'module' => 'Student Affairs', 'description' => 'Log late arrivals and escalate unknown absences.'],
+            // Parent
+            ['name' => 'Submit Permission Requests', 'slug' => 'parent.permissions', 'module' => 'Parent', 'description' => 'Submit student absence requests and check statuses.'],
+        ];
+
+        $permissionModels = [];
+        foreach ($permissions as $perm) {
+            $permissionModels[$perm['slug']] = SystemPermission::firstOrCreate(
+                ['slug' => $perm['slug']],
+                $perm
+            );
+        }
+
+        // 3. Assign Permissions to Roles
+        $superAdminRole->systemPermissions()->sync(collect($permissionModels)->pluck('id'));
+
+        $adminRole->systemPermissions()->sync([
+            $permissionModels['admin.permissions']->id,
+            $permissionModels['admin.absence']->id,
+            $permissionModels['admin.students']->id,
+            $permissionModels['admin.classes']->id,
+            $permissionModels['admin.reports']->id,
+        ]);
+
+        $teacherRole->systemPermissions()->sync([
+            $permissionModels['teacher.attendance']->id,
+        ]);
+
+        $affairsRole->systemPermissions()->sync([
+            $permissionModels['student_affairs.review']->id,
+        ]);
+
+        $parentRole->systemPermissions()->sync([
+            $permissionModels['parent.permissions']->id,
+        ]);
+    }
+
     private function seedUsers(): void
     {
+        $superAdminRole = Role::where('slug', User::ROLE_SUPER_ADMIN)->first();
+        $adminRole = Role::where('slug', User::ROLE_ADMIN)->first();
+        $teacherRole = Role::where('slug', User::ROLE_TEACHER)->first();
+        $affairsRole = Role::where('slug', User::ROLE_STUDENT_AFFAIRS)->first();
+        $parentRole = Role::where('slug', User::ROLE_PARENT)->first();
+
+        $this->superAdmin = User::create([
+            'name' => 'Super Administrator',
+            'email' => 'superadmin@school.test',
+            'password' => 'password',
+            'role' => User::ROLE_SUPER_ADMIN,
+            'role_id' => $superAdminRole?->id,
+            'is_active' => true,
+        ]);
+
         $this->admin = User::create([
-            'name' => 'Admin Office', 'email' => 'admin@school.test', 'password' => 'password', 'role' => User::ROLE_ADMIN,
+            'name' => 'Admin Office',
+            'email' => 'admin@school.test',
+            'password' => 'password',
+            'role' => User::ROLE_ADMIN,
+            'role_id' => $adminRole?->id,
+            'is_active' => true,
         ]);
+
         $this->teacher = User::create([
-            'name' => 'Teacher Dara', 'email' => 'teacher@school.test', 'password' => 'password', 'role' => User::ROLE_TEACHER,
+            'name' => 'Teacher Dara',
+            'email' => 'teacher@school.test',
+            'password' => 'password',
+            'role' => User::ROLE_TEACHER,
+            'role_id' => $teacherRole?->id,
+            'is_active' => true,
         ]);
+
         $this->affairs = User::create([
-            'name' => 'Student Affairs', 'email' => 'affairs@school.test', 'password' => 'password', 'role' => User::ROLE_STUDENT_AFFAIRS,
+            'name' => 'Student Affairs',
+            'email' => 'affairs@school.test',
+            'password' => 'password',
+            'role' => User::ROLE_STUDENT_AFFAIRS,
+            'role_id' => $affairsRole?->id,
+            'is_active' => true,
         ]);
+
         $this->parent = User::create([
-            'name' => 'Sok Dara', 'email' => 'parent@school.test', 'password' => 'password', 'role' => User::ROLE_PARENT,
+            'name' => 'Sok Dara',
+            'email' => 'parent@school.test',
+            'password' => 'password',
+            'role' => User::ROLE_PARENT,
+            'role_id' => $parentRole?->id,
+            'is_active' => true,
         ]);
     }
 

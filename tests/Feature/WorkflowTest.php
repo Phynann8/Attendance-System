@@ -19,10 +19,15 @@ class WorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $teacher;
+
     private User $affairs;
+
     private ClassRoom $class;
+
     private Student $permissionStudent;
+
     private Student $normalStudent;
 
     protected function setUp(): void

@@ -15,28 +15,44 @@ class ReviewController extends Controller
     /**
      * Absent students for submitted sessions that Student Affairs must verify.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $cases = Attendance::with(['student.classRoom', 'session.classRoom', 'session.teacher'])
+        $userCampusId = $request->user()->activeCampusId();
+
+        $casesQuery = Attendance::with(['student.classRoom', 'session.classRoom', 'session.teacher'])
             ->where('status', Attendance::STATUS_ABSENT)
             ->where('case_status', Attendance::CASE_PENDING)
-            ->whereHas('session', fn ($q) => $q->where('status', AttendanceSession::STATUS_SUBMITTED))
-            ->get()
+            ->whereHas('session', fn ($q) => $q->where('status', AttendanceSession::STATUS_SUBMITTED));
+
+        $lateQuery = Attendance::where('final_status', Attendance::FINAL_LATE)
+            ->whereDate('finalized_at', today());
+
+        $escalatedQuery = Attendance::where('case_status', Attendance::CASE_ESCALATED)
+            ->whereNull('final_status');
+
+        if ($userCampusId) {
+            $casesQuery->forCampus($userCampusId);
+            $lateQuery->forCampus($userCampusId);
+            $escalatedQuery->forCampus($userCampusId);
+        }
+
+        $cases = $casesQuery->get()
             ->sortByDesc(fn (Attendance $a) => $a->session->session_date->format('Y-m-d').' '.$a->student->name);
 
         return view('student-affairs.review.index', [
             'cases' => $cases,
-            'lateToday' => Attendance::where('final_status', Attendance::FINAL_LATE)
-                ->whereDate('finalized_at', today())
-                ->count(),
-            'escalatedCount' => Attendance::where('case_status', Attendance::CASE_ESCALATED)
-                ->whereNull('final_status')
-                ->count(),
+            'lateToday' => $lateQuery->count(),
+            'escalatedCount' => $escalatedQuery->count(),
         ]);
     }
 
     public function markArrived(Request $request, Attendance $attendance)
     {
+        $userCampusId = $request->user()->activeCampusId();
+        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+            abort(403, 'You do not have permission to review attendance from another campus.');
+        }
+
         $request->validate([
             'arrived_at' => ['required', 'date_format:Y-m-d\TH:i'],
         ]);
@@ -52,6 +68,11 @@ class ReviewController extends Controller
 
     public function escalate(Request $request, Attendance $attendance)
     {
+        $userCampusId = $request->user()->activeCampusId();
+        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+            abort(403, 'You do not have permission to escalate attendance from another campus.');
+        }
+
         try {
             AttendanceService::escalateNoShow($attendance, $request->user());
 

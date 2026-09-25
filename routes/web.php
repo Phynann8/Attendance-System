@@ -1,16 +1,25 @@
 <?php
 
 use App\Http\Controllers\Admin\AbsenceReviewController;
+use App\Http\Controllers\Admin\AttendanceSessionController;
+use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ClassController;
 use App\Http\Controllers\Admin\PermissionController as AdminPermissionController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\CampusController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\Parent\PermissionController as ParentPermissionController;
 use App\Http\Controllers\StudentAffairs\ReviewController;
+use App\Http\Controllers\SuperAdmin\RoleController as SuperAdminRoleController;
+use App\Http\Controllers\SuperAdmin\SchoolSettingController as SuperAdminSchoolSettingController;
+use App\Http\Controllers\SuperAdmin\UserController as SuperAdminUserController;
 use App\Http\Controllers\Teacher\AttendanceController;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/locale/{locale}', [LocaleController::class, 'switchLocale'])->name('locale.switch');
 
 Route::get('/', fn () => redirect()->route('dashboard'));
 
@@ -25,6 +34,35 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->midd
 // ------------------------------------------------------------- Authenticated
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::post('/campus/switch', [CampusController::class, 'switchCampus'])->name('campus.switch');
+
+    // --------------------------------------------------------- Super Admin
+    Route::prefix('super-admin')
+        ->name('super-admin.')
+        ->middleware('role:super_admin')
+        ->group(function () {
+            // User management
+            Route::get('users', [SuperAdminUserController::class, 'index'])->name('users.index');
+            Route::get('users/create', [SuperAdminUserController::class, 'create'])->name('users.create');
+            Route::post('users', [SuperAdminUserController::class, 'store'])->name('users.store');
+            Route::get('users/{user}/edit', [SuperAdminUserController::class, 'edit'])->name('users.edit');
+            Route::put('users/{user}', [SuperAdminUserController::class, 'update'])->name('users.update');
+            Route::post('users/{user}/toggle-status', [SuperAdminUserController::class, 'toggleStatus'])->name('users.toggle-status');
+            Route::delete('users/{user}', [SuperAdminUserController::class, 'destroy'])->name('users.destroy');
+            Route::post('users/{id}/restore', [SuperAdminUserController::class, 'restore'])->name('users.restore');
+
+            // Role & custom permission management
+            Route::get('roles', [SuperAdminRoleController::class, 'index'])->name('roles.index');
+            Route::get('roles/create', [SuperAdminRoleController::class, 'create'])->name('roles.create');
+            Route::post('roles', [SuperAdminRoleController::class, 'store'])->name('roles.store');
+            Route::get('roles/{role}/edit', [SuperAdminRoleController::class, 'edit'])->name('roles.edit');
+            Route::put('roles/{role}', [SuperAdminRoleController::class, 'update'])->name('roles.update');
+            Route::delete('roles/{role}', [SuperAdminRoleController::class, 'destroy'])->name('roles.destroy');
+
+            // School branding & settings
+            Route::get('settings', [SuperAdminSchoolSettingController::class, 'index'])->name('settings.index');
+            Route::put('settings', [SuperAdminSchoolSettingController::class, 'update'])->name('settings.update');
+        });
 
     // --------------------------------------------------------------- Admin
     Route::prefix('admin')
@@ -53,6 +91,10 @@ Route::middleware('auth')->group(function () {
             Route::get('classes/{class}', [ClassController::class, 'show'])->name('classes.show');
 
             Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
+            Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
+            Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+            Route::get('attendance-sessions/{session}', [AttendanceController::class, 'mark'])->name('attendance-sessions.show');
+            Route::post('attendance-sessions/{session}/reopen', [AttendanceSessionController::class, 'reopen'])->name('attendance-sessions.reopen');
         });
 
     // -------------------------------------------------------------- Teacher
