@@ -115,6 +115,7 @@ Route::middleware('auth')->group(function () {
 
             Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
             Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
+            Route::get('reports/print', [ReportController::class, 'print'])->name('reports.print');
             Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
             Route::get('attendance-sessions/{session}', [AttendanceController::class, 'mark'])->name('attendance-sessions.show');
             Route::post('attendance-sessions/{session}/reopen', [AttendanceSessionController::class, 'reopen'])->name('attendance-sessions.reopen');

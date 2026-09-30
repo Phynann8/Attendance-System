@@ -100,4 +100,56 @@ class ReportExportTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    public function test_admin_can_export_attendance_report_xlsx(): void
+    {
+        $start = now()->subDays(3)->toDateString();
+        $end = now()->toDateString();
+
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.export', [
+            'format' => 'xlsx',
+            'start_date' => $start,
+            'end_date' => $end,
+        ]));
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('attachment', (string) $response->headers->get('content-disposition'));
+        $this->assertStringContainsString('.xlsx', (string) $response->headers->get('content-disposition'));
+        $this->assertStringContainsString('spreadsheetml.sheet', (string) $response->headers->get('content-type'));
+    }
+
+    public function test_admin_export_with_pdf_format_redirects_to_printable_view(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.export', [
+            'format' => 'pdf',
+            'start_date' => now()->toDateString(),
+        ]));
+
+        $response->assertRedirect(route('admin.reports.print', [
+            'format' => 'pdf',
+            'start_date' => now()->toDateString(),
+        ]));
+    }
+
+    public function test_admin_can_view_printable_school_board_report(): void
+    {
+        $response = $this->actingAs($this->admin)->get(route('admin.reports.print', [
+            'start_date' => now()->subDays(7)->toDateString(),
+            'end_date' => now()->toDateString(),
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('Official Attendance Register');
+        $response->assertSee('window.print()', false);
+        $response->assertSee('Attendance Rate');
+        $response->assertSee('Homeroom / Subject Teacher');
+        $response->assertSee('Campus Director / Principal');
+    }
+
+    public function test_teacher_cannot_access_printable_school_board_report(): void
+    {
+        $response = $this->actingAs($this->teacher)->get(route('admin.reports.print'));
+
+        $response->assertStatus(403);
+    }
 }

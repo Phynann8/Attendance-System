@@ -8,10 +8,11 @@ use App\Models\Campus;
 use App\Models\ClassRoom;
 use App\Models\ClassSchedule;
 use App\Models\User;
+use App\Services\ExcelExportService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class ReportController extends Controller
 {
@@ -83,7 +84,290 @@ class ReportController extends Controller
             periodNumber: $periodNumber
         );
 
-        // 1. DB-Level Aggregation: Compute summary counts directly in SQL (Story 34)
+        $summary = $this->calculateSummary($baseQuery);
+        $subjectBreakdown = $this->calculateSubjectBreakdown($baseQuery);
+
+        // 3. Database-Level Pagination for rows table (Story 34)
+        $rows = (clone $baseQuery)
+            ->select('attendances.*')
+            ->with([
+                'student.campus',
+                'session.classRoom.campus',
+                'session.schedule',
+                'finalizer',
+            ])
+            ->join('students', 'attendances.student_id', '=', 'students.id')
+            ->orderBy('attendance_sessions.session_date', 'desc')
+            ->orderBy('classes.name', 'asc')
+            ->orderBy('students.name', 'asc')
+            ->paginate(50)
+            ->withQueryString();
+
+        $sessions = collect();
+        $date = $startDate;
+
+        return view('admin.reports.index', compact(
+            'startDate',
+            'endDate',
+            'classId',
+            'finalStatus',
+            'subject',
+            'periodNumber',
+            'availableSubjects',
+            'availablePeriods',
+            'preset',
+            'classes',
+            'campuses',
+            'campusId',
+            'sessions',
+            'rows',
+            'summary',
+            'subjectBreakdown',
+            'date'
+        ));
+    }
+
+    /**
+     * Export attendance report to CSV or native styled XLSX (Story 14, 34).
+     */
+    public function export(Request $request, ExcelExportService $excelService): Response
+    {
+        $parsed = $this->parseReportFilters($request);
+        $startDate = $parsed['startDate'];
+        $endDate = $parsed['endDate'];
+        $classId = $parsed['classId'];
+        $finalStatus = $parsed['finalStatus'];
+        $subject = $parsed['subject'];
+        $periodNumber = $parsed['periodNumber'];
+
+        $user = $request->user();
+        $userCampusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
+
+        if ($userCampusId) {
+            $campusId = $userCampusId;
+        } elseif ($request->filled('campus_id')) {
+            $filterCampus = (int) $request->input('campus_id');
+            $campusId = ($user->isSuperAdmin() || $user->hasCampusAccess($filterCampus)) ? $filterCampus : null;
+        } else {
+            $campusId = null;
+        }
+
+        $format = strtolower((string) $request->input('format', 'csv'));
+
+        if ($format === 'pdf') {
+            return redirect()->route('admin.reports.print', $request->query());
+        }
+
+        $startStr = $startDate->toDateString();
+        $endStr = $endDate->toDateString();
+        $baseName = $startStr === $endStr
+            ? "attendance-report-{$startStr}"
+            : "attendance-report-{$startStr}-to-{$endStr}";
+
+        $baseQuery = $this->buildAttendanceQuery(
+            user: $user,
+            campusId: $campusId,
+            assignedCampusIds: $assignedCampusIds,
+            startDate: $startDate,
+            endDate: $endDate,
+            classId: $classId,
+            finalStatus: $finalStatus,
+            subject: $subject,
+            periodNumber: $periodNumber
+        );
+
+        $headers = [
+            'Date',
+            'Class',
+            'Period',
+            'Subject',
+            'Student Name',
+            'Teacher Mark',
+            'Arrival Time',
+            'Minutes Late',
+            'Final Status',
+            'Finalized By',
+            'Admin Note / Reason',
+        ];
+
+        // Format: XLSX (Story 14)
+        if ($format === 'xlsx') {
+            $records = (clone $baseQuery)
+                ->select('attendances.*')
+                ->with([
+                    'student',
+                    'session.classRoom',
+                    'session.schedule',
+                    'finalizer',
+                ])
+                ->join('students', 'attendances.student_id', '=', 'students.id')
+                ->orderBy('attendance_sessions.session_date', 'desc')
+                ->orderBy('classes.name', 'asc')
+                ->orderBy('students.name', 'asc')
+                ->get();
+
+            $rows = [];
+            foreach ($records as $attendance) {
+                $session = $attendance->session;
+                $rows[] = [
+                    $session ? $session->session_date->format('Y-m-d') : '—',
+                    $session?->classRoom?->name ?? '—',
+                    $session?->schedule ? "#{$session->schedule->period_number}" : 'Homeroom',
+                    $session?->schedule ? $session->schedule->subject : 'Daily Homeroom',
+                    $attendance->student->name ?? '—',
+                    $attendance->status ? ucfirst($attendance->status) : '—',
+                    $attendance->arrived_at?->format('H:i') ?? '—',
+                    $attendance->minutes_late ?? '—',
+                    $attendance->final_status ? ucfirst(str_replace('_', ' ', $attendance->final_status)) : ($attendance->status ? 'Pending' : '—'),
+                    $attendance->finalizer->name ?? '—',
+                    $attendance->admin_note ?? '—',
+                ];
+            }
+
+            $summary = $this->calculateSummary($baseQuery);
+            $filename = "{$baseName}.xlsx";
+            $tempPath = $excelService->generateXlsx('Attendance Report', $headers, $rows, $summary);
+
+            return response()->download($tempPath, $filename, [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])->deleteFileAfterSend(true);
+        }
+
+        // Format: CSV with streaming chunking
+        $filename = "{$baseName}.csv";
+        $streamQuery = (clone $baseQuery)
+            ->select('attendances.*')
+            ->with([
+                'student',
+                'session.classRoom',
+                'session.schedule',
+                'finalizer',
+            ])
+            ->join('students', 'attendances.student_id', '=', 'students.id')
+            ->orderBy('attendance_sessions.session_date', 'desc')
+            ->orderBy('classes.name', 'asc')
+            ->orderBy('students.name', 'asc');
+
+        return response()->streamDownload(function () use ($streamQuery, $headers) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($handle, $headers);
+
+            // Stream records in memory-safe chunks (Story 34)
+            $streamQuery->chunk(500, function ($chunk) use ($handle) {
+                foreach ($chunk as $attendance) {
+                    $session = $attendance->session;
+                    fputcsv($handle, [
+                        $session ? $session->session_date->format('Y-m-d') : '—',
+                        $session?->classRoom?->name ?? '—',
+                        $session?->schedule ? "#{$session->schedule->period_number}" : 'Homeroom',
+                        $session?->schedule ? $session->schedule->subject : 'Daily Homeroom',
+                        $attendance->student->name ?? '—',
+                        $attendance->status ? ucfirst($attendance->status) : '—',
+                        $attendance->arrived_at?->format('H:i') ?? '—',
+                        $attendance->minutes_late ?? '—',
+                        $attendance->final_status ? ucfirst(str_replace('_', ' ', $attendance->final_status)) : ($attendance->status ? 'Pending' : '—'),
+                        $attendance->finalizer->name ?? '—',
+                        $attendance->admin_note ?? '—',
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /**
+     * Printable School Board PDF view with executive summary and attendance register (Story 14).
+     */
+    public function print(Request $request)
+    {
+        $parsed = $this->parseReportFilters($request);
+        $startDate = $parsed['startDate'];
+        $endDate = $parsed['endDate'];
+        $classId = $parsed['classId'];
+        $finalStatus = $parsed['finalStatus'];
+        $subject = $parsed['subject'];
+        $periodNumber = $parsed['periodNumber'];
+        $preset = $parsed['preset'];
+
+        $user = $request->user();
+        $userCampusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
+
+        if ($userCampusId) {
+            $campusId = $userCampusId;
+        } elseif ($request->filled('campus_id')) {
+            $filterCampus = (int) $request->input('campus_id');
+            $campusId = ($user->isSuperAdmin() || $user->hasCampusAccess($filterCampus)) ? $filterCampus : null;
+        } else {
+            $campusId = null;
+        }
+
+        $baseQuery = $this->buildAttendanceQuery(
+            user: $user,
+            campusId: $campusId,
+            assignedCampusIds: $assignedCampusIds,
+            startDate: $startDate,
+            endDate: $endDate,
+            classId: $classId,
+            finalStatus: $finalStatus,
+            subject: $subject,
+            periodNumber: $periodNumber
+        );
+
+        $summary = $this->calculateSummary($baseQuery);
+        $subjectBreakdown = $this->calculateSubjectBreakdown($baseQuery);
+
+        $rows = (clone $baseQuery)
+            ->select('attendances.*')
+            ->with([
+                'student.campus',
+                'session.classRoom.campus',
+                'session.schedule',
+                'finalizer',
+            ])
+            ->join('students', 'attendances.student_id', '=', 'students.id')
+            ->orderBy('attendance_sessions.session_date', 'desc')
+            ->orderBy('classes.name', 'asc')
+            ->orderBy('students.name', 'asc')
+            ->limit(1000)
+            ->get();
+
+        $selectedCampus = $campusId ? Campus::find($campusId) : null;
+        $selectedClass = $classId ? ClassRoom::find($classId) : null;
+
+        $totalRecords = $summary['present'] + $summary['late'] + $summary['excused'] + $summary['absent_without_permission'];
+        $attendanceRate = $totalRecords > 0
+            ? round((($summary['present'] + $summary['late']) / $totalRecords) * 100, 1)
+            : 0;
+
+        return view('admin.reports.print', compact(
+            'startDate',
+            'endDate',
+            'classId',
+            'finalStatus',
+            'subject',
+            'periodNumber',
+            'preset',
+            'campusId',
+            'selectedCampus',
+            'selectedClass',
+            'rows',
+            'summary',
+            'subjectBreakdown',
+            'totalRecords',
+            'attendanceRate'
+        ));
+    }
+
+    /**
+     * Compute summary counts directly in SQL (Story 34).
+     */
+    private function calculateSummary(Builder $baseQuery): array
+    {
         $summaryRow = (clone $baseQuery)
             ->selectRaw("
                 SUM(CASE WHEN attendances.status = 'permission' THEN 1 ELSE 0 END) as permission_count,
@@ -95,7 +379,7 @@ class ReportController extends Controller
             ")
             ->first();
 
-        $summary = [
+        return [
             'present' => (int) ($summaryRow->present_count ?? 0),
             'late' => (int) ($summaryRow->late_count ?? 0),
             'excused' => (int) ($summaryRow->excused_count ?? 0),
@@ -103,8 +387,13 @@ class ReportController extends Controller
             'permission' => (int) ($summaryRow->permission_count ?? 0),
             'unresolved' => (int) ($summaryRow->unresolved_count ?? 0),
         ];
+    }
 
-        // 2. DB-Level Aggregation: Subject Breakdown with SQL GROUP BY (Story 34)
+    /**
+     * Compute subject breakdown with SQL GROUP BY (Story 34).
+     */
+    private function calculateSubjectBreakdown(Builder $baseQuery): array
+    {
         $breakdownRows = (clone $baseQuery)
             ->selectRaw("
                 COALESCE(class_schedules.subject, 'Daily Homeroom') as subj_name,
@@ -155,143 +444,7 @@ class ReportController extends Controller
             return strcasecmp($a['name'], $b['name']);
         });
 
-        // 3. Database-Level Pagination for rows table (Story 34)
-        $rows = (clone $baseQuery)
-            ->select('attendances.*')
-            ->with([
-                'student.campus',
-                'session.classRoom.campus',
-                'session.schedule',
-                'finalizer',
-            ])
-            ->join('students', 'attendances.student_id', '=', 'students.id')
-            ->orderBy('attendance_sessions.session_date', 'desc')
-            ->orderBy('classes.name', 'asc')
-            ->orderBy('students.name', 'asc')
-            ->paginate(50)
-            ->withQueryString();
-
-        $sessions = collect();
-        $date = $startDate;
-
-        return view('admin.reports.index', compact(
-            'startDate',
-            'endDate',
-            'classId',
-            'finalStatus',
-            'subject',
-            'periodNumber',
-            'availableSubjects',
-            'availablePeriods',
-            'preset',
-            'classes',
-            'campuses',
-            'campusId',
-            'sessions',
-            'rows',
-            'summary',
-            'subjectBreakdown',
-            'date'
-        ));
-    }
-
-    /**
-     * Export attendance report to CSV with streaming chunking to eliminate memory bloat (Story 34).
-     */
-    public function export(Request $request): StreamedResponse
-    {
-        $parsed = $this->parseReportFilters($request);
-        $startDate = $parsed['startDate'];
-        $endDate = $parsed['endDate'];
-        $classId = $parsed['classId'];
-        $finalStatus = $parsed['finalStatus'];
-        $subject = $parsed['subject'];
-        $periodNumber = $parsed['periodNumber'];
-
-        $user = $request->user();
-        $userCampusId = $user->activeCampusId();
-        $assignedCampusIds = $user->assignedCampusIds();
-
-        if ($userCampusId) {
-            $campusId = $userCampusId;
-        } elseif ($request->filled('campus_id')) {
-            $filterCampus = (int) $request->input('campus_id');
-            $campusId = ($user->isSuperAdmin() || $user->hasCampusAccess($filterCampus)) ? $filterCampus : null;
-        } else {
-            $campusId = null;
-        }
-
-        $startStr = $startDate->toDateString();
-        $endStr = $endDate->toDateString();
-        $filename = $startStr === $endStr
-            ? "attendance-report-{$startStr}.csv"
-            : "attendance-report-{$startStr}-to-{$endStr}.csv";
-
-        $baseQuery = $this->buildAttendanceQuery(
-            user: $user,
-            campusId: $campusId,
-            assignedCampusIds: $assignedCampusIds,
-            startDate: $startDate,
-            endDate: $endDate,
-            classId: $classId,
-            finalStatus: $finalStatus,
-            subject: $subject,
-            periodNumber: $periodNumber
-        );
-
-        $streamQuery = (clone $baseQuery)
-            ->select('attendances.*')
-            ->with([
-                'student',
-                'session.classRoom',
-                'session.schedule',
-                'finalizer',
-            ])
-            ->join('students', 'attendances.student_id', '=', 'students.id')
-            ->orderBy('attendance_sessions.session_date', 'desc')
-            ->orderBy('classes.name', 'asc')
-            ->orderBy('students.name', 'asc');
-
-        return response()->streamDownload(function () use ($streamQuery) {
-            $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
-
-            fputcsv($handle, [
-                'Date',
-                'Class',
-                'Period',
-                'Subject',
-                'Student Name',
-                'Teacher Mark',
-                'Arrival Time',
-                'Minutes Late',
-                'Final Status',
-                'Finalized By',
-                'Admin Note / Reason',
-            ]);
-
-            // Stream records in memory-safe chunks (Story 34)
-            $streamQuery->chunk(500, function ($chunk) use ($handle) {
-                foreach ($chunk as $attendance) {
-                    $session = $attendance->session;
-                    fputcsv($handle, [
-                        $session ? $session->session_date->format('Y-m-d') : '—',
-                        $session?->classRoom?->name ?? '—',
-                        $session?->schedule ? "#{$session->schedule->period_number}" : 'Homeroom',
-                        $session?->schedule ? $session->schedule->subject : 'Daily Homeroom',
-                        $attendance->student->name ?? '—',
-                        $attendance->status ? ucfirst($attendance->status) : '—',
-                        $attendance->arrived_at?->format('H:i') ?? '—',
-                        $attendance->minutes_late ?? '—',
-                        $attendance->final_status ? ucfirst(str_replace('_', ' ', $attendance->final_status)) : ($attendance->status ? 'Pending' : '—'),
-                        $attendance->finalizer->name ?? '—',
-                        $attendance->admin_note ?? '—',
-                    ]);
-                }
-            });
-
-            fclose($handle);
-        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return $subjectBreakdown;
     }
 
     /**

@@ -15,8 +15,14 @@
         </div>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <a href="{{ route('admin.reports.export', request()->query()) }}" class="btn btn-secondary" style="display:inline-flex; align-items:center; gap:6px;">
+        <a href="{{ route('admin.reports.export', array_merge(request()->query(), ['format' => 'csv'])) }}" class="btn btn-secondary" style="display:inline-flex; align-items:center; gap:6px;">
             <i class="fa-solid fa-file-csv"></i> {{ __('Export CSV') }}
+        </a>
+        <a href="{{ route('admin.reports.export', array_merge(request()->query(), ['format' => 'xlsx'])) }}" class="btn btn-secondary" style="display:inline-flex; align-items:center; gap:6px; color:#15803d; border-color:#bbf7d0; background:#f0fdf4;">
+            <i class="fa-solid fa-file-excel"></i> {{ __('Export Excel (.xlsx)') }}
+        </a>
+        <a href="{{ route('admin.reports.print', request()->query()) }}" target="_blank" class="btn btn-primary" style="display:inline-flex; align-items:center; gap:6px;">
+            <i class="fa-solid fa-print"></i> {{ __('Print / PDF Board') }}
         </a>
     </div>
 </div>
