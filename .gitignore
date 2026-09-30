@@ -28,3 +28,4 @@ Thumbs.db
 /cloudflared.exe
 /cf.err
 /cf.out
+/scripts/

@@ -78,8 +78,16 @@
                         </span>
                     </td>
                     <td>
-                        @if($u->campus)
-                            <span class="badge badge-slate" title="{{ $u->campus->name_en }} ({{ $u->campus->name_kh }})">
+                        @if($u->campuses->isNotEmpty())
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                @foreach($u->campuses as $c)
+                                    <span class="badge badge-slate" style="font-weight: 700; font-size: 11px;" title="{{ $c->name_en }} ({{ $c->name_kh }})">
+                                        {{ $c->code }}
+                                    </span>
+                                @endforeach
+                            </div>
+                        @elseif($u->campus)
+                            <span class="badge badge-slate" style="font-weight: 700; font-size: 11px;" title="{{ $u->campus->name_en }} ({{ $u->campus->name_kh }})">
                                 {{ $u->campus->code }}
                             </span>
                         @else

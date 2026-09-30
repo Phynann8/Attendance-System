@@ -16,7 +16,9 @@ class AbsenceReviewController extends Controller
      */
     public function index(Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
+        $user = $request->user();
+        $userCampusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
         $query = Attendance::with(['student.classRoom', 'session.classRoom', 'permission'])
             ->where('status', Attendance::STATUS_ABSENT)
             ->where('case_status', Attendance::CASE_ESCALATED)
@@ -24,6 +26,8 @@ class AbsenceReviewController extends Controller
 
         if ($userCampusId) {
             $query->forCampus($userCampusId);
+        } elseif (! $user->isSuperAdmin() && ! empty($assignedCampusIds)) {
+            $query->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
         }
 
         $cases = $query->get()
@@ -38,8 +42,8 @@ class AbsenceReviewController extends Controller
 
     public function show(Attendance $attendance, Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $attendance->student?->campus_id && ! $user->hasCampusAccess($attendance->student->campus_id)) {
             abort(403, 'You do not have permission to view cases from another campus.');
         }
 
@@ -55,8 +59,8 @@ class AbsenceReviewController extends Controller
 
     public function decide(Request $request, Attendance $attendance)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $attendance->student?->campus_id && ! $user->hasCampusAccess($attendance->student->campus_id)) {
             abort(403, 'You do not have permission to decide cases from another campus.');
         }
         $request->validate([

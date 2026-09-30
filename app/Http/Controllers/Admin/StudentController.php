@@ -15,13 +15,20 @@ class StudentController extends Controller
 {
     public function index(Request $request)
     {
-        $campusId = $request->user()->activeCampusId();
+        $user = $request->user();
+        $campusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
         $query = Student::with(['classRoom', 'campus'])->orderBy('name');
 
         if ($campusId) {
             $query->where('campus_id', $campusId);
-        } elseif ($request->filled('campus_id') && ($request->user()->isSuperAdmin() || $request->user()->isAdmin())) {
-            $query->where('campus_id', (int) $request->input('campus_id'));
+        } elseif ($request->filled('campus_id') && ($user->isSuperAdmin() || $user->isAdmin())) {
+            $filterCampus = (int) $request->input('campus_id');
+            if ($user->isSuperAdmin() || $user->hasCampusAccess($filterCampus)) {
+                $query->where('campus_id', $filterCampus);
+            }
+        } elseif (! $user->isSuperAdmin() && ! empty($assignedCampusIds)) {
+            $query->whereIn('campus_id', $assignedCampusIds);
         }
 
         if ($request->filled('q')) {
@@ -42,13 +49,22 @@ class StudentController extends Controller
         if ($campusId) {
             $classesQuery->where('campus_id', $campusId);
         } elseif ($request->filled('campus_id')) {
-            $classesQuery->where('campus_id', (int) $request->input('campus_id'));
+            $filterCampus = (int) $request->input('campus_id');
+            if ($user->isSuperAdmin() || $user->hasCampusAccess($filterCampus)) {
+                $classesQuery->where('campus_id', $filterCampus);
+            }
+        } elseif (! $user->isSuperAdmin() && ! empty($assignedCampusIds)) {
+            $classesQuery->whereIn('campus_id', $assignedCampusIds);
         }
+
+        $campuses = ($user->isSuperAdmin() || empty($assignedCampusIds))
+            ? Campus::where('is_active', true)->ordered()->get()
+            : Campus::whereIn('id', $assignedCampusIds)->where('is_active', true)->ordered()->get();
 
         return view('admin.students.index', [
             'students' => $query->paginate(12)->withQueryString(),
             'classes' => $classesQuery->get(),
-            'campuses' => Campus::where('is_active', true)->ordered()->get(),
+            'campuses' => $campuses,
         ]);
     }
 
@@ -59,15 +75,22 @@ class StudentController extends Controller
 
     public function store(StoreStudentRequest $request)
     {
-        Student::create($request->validated());
+        $user = $request->user();
+        $data = $request->validated();
+
+        if (! $user->isSuperAdmin() && ! empty($data['campus_id']) && ! $user->hasCampusAccess($data['campus_id'])) {
+            abort(403, 'You do not have permission to add students to another campus.');
+        }
+
+        Student::create($data);
 
         return redirect()->route('admin.students.index')->with('success', 'Student added.');
     }
 
     public function show(Student $student, Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $student->campus_id && (int) $student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $student->campus_id && ! $user->hasCampusAccess($student->campus_id)) {
             abort(403, 'You do not have permission to view students from another campus.');
         }
 

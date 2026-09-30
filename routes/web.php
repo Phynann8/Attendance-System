@@ -4,10 +4,13 @@ use App\Http\Controllers\Admin\AbsenceReviewController;
 use App\Http\Controllers\Admin\AttendanceSessionController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\ClassController;
+use App\Http\Controllers\Admin\ClassScheduleController;
 use App\Http\Controllers\Admin\PermissionController as AdminPermissionController;
 use App\Http\Controllers\Admin\ReportController;
+use App\Http\Controllers\Admin\ScheduleSubstitutionController;
 use App\Http\Controllers\Admin\StudentController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\TwoFactorAuthController;
 use App\Http\Controllers\CampusController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LocaleController;
@@ -17,24 +20,35 @@ use App\Http\Controllers\SuperAdmin\RoleController as SuperAdminRoleController;
 use App\Http\Controllers\SuperAdmin\SchoolSettingController as SuperAdminSchoolSettingController;
 use App\Http\Controllers\SuperAdmin\UserController as SuperAdminUserController;
 use App\Http\Controllers\Teacher\AttendanceController;
+use App\Http\Controllers\Teacher\ScheduleController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/locale/{locale}', [LocaleController::class, 'switchLocale'])->name('locale.switch');
 
 Route::get('/', fn () => redirect()->route('dashboard'));
 
-// ------------------------------------------------------------------ Guest
+// ------------------------------------------------------------------ Guest / Auth Challenge
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [LoginController::class, 'login'])->name('login.attempt');
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:5,1')->name('login.attempt');
+    Route::get('/2fa/challenge', [TwoFactorAuthController::class, 'showChallenge'])->name('2fa.challenge');
+    Route::post('/2fa/challenge', [TwoFactorAuthController::class, 'verifyChallenge'])->middleware('throttle:5,1')->name('2fa.verify');
+    Route::get('/2fa/cancel', [TwoFactorAuthController::class, 'cancel'])->name('2fa.cancel');
 });
 
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+Route::match(['get', 'post'], '/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
 // ------------------------------------------------------------- Authenticated
 Route::middleware('auth')->group(function () {
+    Route::post('/session/ping', fn () => response()->json(['status' => 'active']))->name('session.ping');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::post('/campus/switch', [CampusController::class, 'switchCampus'])->name('campus.switch');
+
+    // Attendance session reopen workflow (Teacher request, Student Affairs / Admin / Super Admin confirm)
+    Route::get('/attendance-sessions/{session}', [AttendanceController::class, 'mark'])->name('attendance-sessions.show');
+    Route::post('/attendance-sessions/{session}/reopen', [AttendanceSessionController::class, 'reopen'])->name('attendance-sessions.reopen');
+    Route::post('/attendance-sessions/{session}/reopen-approve', [AttendanceSessionController::class, 'approve'])->name('attendance-sessions.reopen-approve');
+    Route::post('/attendance-sessions/{session}/reopen-reject', [AttendanceSessionController::class, 'reject'])->name('attendance-sessions.reopen-reject');
 
     // --------------------------------------------------------- Super Admin
     Route::prefix('super-admin')
@@ -89,6 +103,15 @@ Route::middleware('auth')->group(function () {
             Route::get('classes/create', [ClassController::class, 'create'])->name('classes.create');
             Route::post('classes', [ClassController::class, 'store'])->name('classes.store');
             Route::get('classes/{class}', [ClassController::class, 'show'])->name('classes.show');
+            Route::post('classes/{class}/assign-teacher', [ClassController::class, 'assignTeacher'])->name('classes.assign-teacher');
+            Route::post('classes/{class}/schedules', [ClassScheduleController::class, 'store'])->name('classes.schedules.store');
+            Route::delete('classes/{class}/schedules/{schedule}', [ClassScheduleController::class, 'destroy'])->name('classes.schedules.destroy');
+            Route::get('schedules/template', [ClassScheduleController::class, 'downloadTemplate'])->name('schedules.template');
+            Route::post('schedules/import', [ClassScheduleController::class, 'import'])->name('schedules.import');
+
+            Route::get('substitutions', [ScheduleSubstitutionController::class, 'index'])->name('substitutions.index');
+            Route::post('substitutions', [ScheduleSubstitutionController::class, 'store'])->name('substitutions.store');
+            Route::delete('substitutions/{substitution}', [ScheduleSubstitutionController::class, 'destroy'])->name('substitutions.destroy');
 
             Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
             Route::get('reports/export', [ReportController::class, 'export'])->name('reports.export');
@@ -103,8 +126,14 @@ Route::middleware('auth')->group(function () {
         ->middleware('role:teacher')
         ->group(function () {
             Route::get('attendance', [AttendanceController::class, 'history'])->name('attendance.history');
+            Route::get('schedule', [ScheduleController::class, 'index'])
+                ->withoutMiddleware('role:teacher')
+                ->middleware('role:teacher,admin')
+                ->name('schedule.index');
             Route::post('classes/{class}/open', [AttendanceController::class, 'open'])->name('attendance.open');
-            Route::get('attendance/{session}', [AttendanceController::class, 'mark'])->name('attendance.mark');
+            Route::get('attendance/{session}', [AttendanceController::class, 'mark'])
+                ->withoutMiddleware('role:teacher')
+                ->name('attendance.mark');
             Route::post('attendance/{session}/save', [AttendanceController::class, 'save'])->name('attendance.save');
             Route::post('attendance/{session}/submit', [AttendanceController::class, 'submit'])->name('attendance.submit');
         });

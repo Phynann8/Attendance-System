@@ -45,4 +45,19 @@ class ClassRoom extends Model
     {
         return $this->hasMany(AttendanceSession::class, 'class_id');
     }
+
+    public function attendanceSessions(): HasMany
+    {
+        return $this->sessions();
+    }
+
+    public function schedules(): HasMany
+    {
+        return $this->hasMany(ClassSchedule::class, 'class_id');
+    }
+
+    public function activeSchedules(): HasMany
+    {
+        return $this->schedules()->where('is_active', true)->orderBy('day_of_week')->orderBy('period_number');
+    }
 }

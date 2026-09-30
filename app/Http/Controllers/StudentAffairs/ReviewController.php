@@ -17,7 +17,9 @@ class ReviewController extends Controller
      */
     public function index(Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
+        $user = $request->user();
+        $userCampusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
 
         $casesQuery = Attendance::with(['student.classRoom', 'session.classRoom', 'session.teacher'])
             ->where('status', Attendance::STATUS_ABSENT)
@@ -34,6 +36,10 @@ class ReviewController extends Controller
             $casesQuery->forCampus($userCampusId);
             $lateQuery->forCampus($userCampusId);
             $escalatedQuery->forCampus($userCampusId);
+        } elseif (! $user->isSuperAdmin()) {
+            $casesQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
+            $lateQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
+            $escalatedQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
         }
 
         $cases = $casesQuery->get()
@@ -48,8 +54,8 @@ class ReviewController extends Controller
 
     public function markArrived(Request $request, Attendance $attendance)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $attendance->student?->campus_id && ! $user->hasCampusAccess($attendance->student->campus_id)) {
             abort(403, 'You do not have permission to review attendance from another campus.');
         }
 
@@ -68,8 +74,8 @@ class ReviewController extends Controller
 
     public function escalate(Request $request, Attendance $attendance)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $attendance->student?->campus_id && (int) $attendance->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $attendance->student?->campus_id && ! $user->hasCampusAccess($attendance->student->campus_id)) {
             abort(403, 'You do not have permission to escalate attendance from another campus.');
         }
 

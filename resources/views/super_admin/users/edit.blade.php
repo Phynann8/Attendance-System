@@ -55,20 +55,41 @@
             @enderror
         </div>
 
-        <div class="form-group" style="margin-bottom: 16px;">
-            <label for="campus_id">{{ __('Assigned Campus') }}</label>
-            <select id="campus_id" name="campus_id">
-                <option value="">-- {{ __('All Campuses / Central') }} --</option>
-                @foreach($campuses as $campus)
-                    <option value="{{ $campus->id }}" @selected(old('campus_id', $user->campus_id) == $campus->id)>
-                        {{ $campus->code }} — {{ $campus->name_en }} ({{ $campus->name_kh }})
-                    </option>
-                @endforeach
-            </select>
-            <div style="font-size: 13px; color: var(--muted); margin-top: 2px;">
-                {{ __("Leave empty for system-wide access (Super Admin), or select a campus to isolate the user's data.") }}
+        <div class="form-group" style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                <label style="font-weight: 600; color: #334155; margin-bottom: 0;">
+                    {{ __('Assigned Campuses') }}
+                </label>
+                <div style="font-size: 12px; display: flex; gap: 8px;">
+                    <a href="javascript:void(0)" onclick="selectAllCampuses(true)" style="color: var(--brand-blue, #0284c7); text-decoration: none; font-weight: 600;">{{ __('Select All') }}</a>
+                    <span style="color: #cbd5e1;">|</span>
+                    <a href="javascript:void(0)" onclick="selectAllCampuses(false)" style="color: #64748b; text-decoration: none;">{{ __('Clear All') }}</a>
+                </div>
             </div>
-            @error('campus_id')
+            
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                @php
+                    $selectedCampusIds = old('campus_ids', $user->campuses->pluck('id')->all());
+                    if (empty($selectedCampusIds) && $user->campus_id) {
+                        $selectedCampusIds = [(int) $user->campus_id];
+                    }
+                @endphp
+                @foreach($campuses as $campus)
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 10px; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; margin: 0; font-size: 13px;">
+                        <input type="checkbox" name="campus_ids[]" value="{{ $campus->id }}" class="campus-checkbox"
+                            @checked(in_array($campus->id, $selectedCampusIds))
+                            style="width: 16px; height: 16px; accent-color: var(--brand-blue, #0284c7); cursor: pointer;">
+                        <div>
+                            <strong style="color: #0f172a;">{{ $campus->code }}</strong>
+                            <span class="muted small" style="font-size: 11px; margin-left: 2px;">({{ $campus->name_en }})</span>
+                        </div>
+                    </label>
+                @endforeach
+            </div>
+            <div style="font-size: 12px; color: var(--muted); margin-top: 5px;">
+                {{ __('Select one or more campuses this user has access to. If none selected and role is Super Admin, access is system-wide.') }}
+            </div>
+            @error('campus_ids')
                 <div style="color: var(--red); font-size: 13px; margin-top: 4px;">{{ $message }}</div>
             @enderror
         </div>
@@ -89,4 +110,10 @@
         </div>
     </form>
 </div>
+
+<script>
+function selectAllCampuses(check) {
+    document.querySelectorAll('.campus-checkbox').forEach(cb => cb.checked = check);
+}
+</script>
 @endsection

@@ -14,13 +14,29 @@ class AttendanceSession extends Model
 
     public const STATUS_CLOSED = 'closed';
 
+    public const REOPEN_NONE = 'none';
+
+    public const REOPEN_PENDING = 'pending';
+
+    public const REOPEN_APPROVED = 'approved';
+
+    public const REOPEN_REJECTED = 'rejected';
+
     protected $fillable = [
         'class_id',
+        'class_schedule_id',
         'teacher_id',
         'session_date',
         'opened_at',
         'submitted_at',
         'status',
+        'reopen_status',
+        'reopen_reason',
+        'reopen_requested_by',
+        'reopen_requested_at',
+        'reopen_decided_by',
+        'reopen_decided_at',
+        'reopen_decision_note',
     ];
 
     protected function casts(): array
@@ -29,12 +45,33 @@ class AttendanceSession extends Model
             'session_date' => 'date',
             'opened_at' => 'datetime',
             'submitted_at' => 'datetime',
+            'reopen_requested_at' => 'datetime',
+            'reopen_decided_at' => 'datetime',
         ];
     }
 
     public function classRoom(): BelongsTo
     {
         return $this->belongsTo(ClassRoom::class, 'class_id');
+    }
+
+    public function schedule(): BelongsTo
+    {
+        return $this->belongsTo(ClassSchedule::class, 'class_schedule_id');
+    }
+
+    public function isPrimary(): bool
+    {
+        return $this->schedule ? $this->schedule->is_primary : true;
+    }
+
+    public function periodLabel(): string
+    {
+        if ($this->schedule) {
+            return $this->schedule->label();
+        }
+
+        return __('Homeroom Daily Session');
     }
 
     public function scopeForCampus($query, ?int $campusId)
@@ -59,5 +96,20 @@ class AttendanceSession extends Model
     public function isSubmitted(): bool
     {
         return $this->status === self::STATUS_SUBMITTED || $this->status === self::STATUS_CLOSED;
+    }
+
+    public function reopenRequester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reopen_requested_by');
+    }
+
+    public function reopenDecider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reopen_decided_by');
+    }
+
+    public function isReopenPending(): bool
+    {
+        return $this->reopen_status === self::REOPEN_PENDING;
     }
 }

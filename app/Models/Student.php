@@ -19,6 +19,7 @@ class Student extends Model
         'parent_name',
         'parent_phone',
         'parent_email',
+        'telegram_chat_id',
         'parent_user_id',
         'is_active',
         'psis_student_id',

@@ -9,8 +9,12 @@ use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
 {
-    public function showLoginForm()
+    public function showLoginForm(Request $request)
     {
+        if ($request->query('reason') === 'inactivity' && ! session()->has('warning')) {
+            session()->flash('warning', 'Your session has expired due to 15 minutes of inactivity. Please sign in again.');
+        }
+
         return view('auth.login');
     }
 
@@ -38,6 +42,15 @@ class LoginController extends Controller
             ]);
         }
 
+        // Two-Factor Authentication (2FA / TOTP) for Administrators (ATTEND-18)
+        if ($user->isAdmin() || $user->hasTwoFactorEnabled()) {
+            Auth::logout();
+            $request->session()->put('2fa:user_id', $user->id);
+            $request->session()->put('2fa:remember', $request->boolean('remember'));
+
+            return redirect()->route('2fa.challenge');
+        }
+
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard'));
@@ -49,6 +62,11 @@ class LoginController extends Controller
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
+        if ($request->query('reason') === 'inactivity' || $request->input('reason') === 'inactivity') {
+            return redirect()->route('login', ['reason' => 'inactivity'])
+                ->with('warning', 'Your session has expired due to 15 minutes of inactivity. Please sign in again.');
+        }
 
         return redirect()->route('login')->with('info', 'You have been signed out.');
     }

@@ -5,6 +5,7 @@ namespace App\Services;
 use Closure;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class CacheService
 {
@@ -69,8 +70,8 @@ class CacheService
             if (method_exists(Cache::getStore(), 'tags')) {
                 Cache::tags(['dashboard'])->flush();
             }
-        } catch (\Throwable) {
-            // Ignore if driver does not support tags
+        } catch (\Throwable $e) {
+            Log::warning('Cache tag flush failed for dashboard: '.$e->getMessage());
         }
     }
 

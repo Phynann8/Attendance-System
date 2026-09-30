@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAttendanceNotificationJob;
 use App\Models\Attendance;
 use App\Models\AttendanceSession;
 use App\Models\ClassRoom;
+use App\Models\ClassSchedule;
 use App\Models\Permission;
 use App\Models\User;
 use Carbon\Carbon;
@@ -25,24 +27,56 @@ class AttendanceService
      * Open a session for a class on a date and pre-create every attendance row.
      * Students with an approved permission are locked with status = permission.
      */
-    public static function openSession(ClassRoom $class, User $teacher, ?Carbon $date = null): AttendanceSession
+    /**
+     * Open a session for a class on a date and pre-create every attendance row.
+     * Students with an approved permission are locked with status = permission.
+     */
+    public static function openSession(ClassRoom $class, User $teacher, ?Carbon $date = null, ?ClassSchedule $schedule = null): AttendanceSession
     {
         $dateString = ($date ?? Carbon::today())->format('Y-m-d');
+        $lockKey = $schedule
+            ? "session:open:{$class->id}:{$schedule->id}:{$dateString}"
+            : "session:open:{$class->id}:homeroom:{$dateString}";
 
-        return CacheService::lock("session:open:{$class->id}:{$dateString}", 10)->block(5, function () use ($class, $teacher, $dateString) {
-            $alreadyExists = AttendanceSession::query()
-                ->where('class_id', $class->id)
-                ->whereDate('session_date', $dateString)
-                ->exists();
+        return CacheService::lock($lockKey, 10)->block(5, function () use ($class, $teacher, $dateString, $schedule) {
+            if ($schedule) {
+                $alreadyExists = AttendanceSession::query()
+                    ->where('class_schedule_id', $schedule->id)
+                    ->whereDate('session_date', $dateString)
+                    ->exists();
 
-            if ($alreadyExists) {
-                throw new RuntimeException('An attendance session already exists for this class on this date.');
+                if ($alreadyExists) {
+                    throw new RuntimeException("An attendance session already exists for {$schedule->label()} on this date.");
+                }
+
+                $activeTeacher = $schedule->getActiveTeacherForDate($dateString);
+                $effectiveTeacherId = ($teacher->isSuperAdmin() || $teacher->isAdmin())
+                    ? $activeTeacher->id
+                    : $teacher->id;
+            } else {
+                $alreadyExists = AttendanceSession::query()
+                    ->where('class_id', $class->id)
+                    ->whereNull('class_schedule_id')
+                    ->whereDate('session_date', $dateString)
+                    ->exists();
+
+                if ($alreadyExists) {
+                    throw new RuntimeException('An attendance session already exists for this class on this date.');
+                }
+
+                $effectiveTeacherId = ($teacher->isSuperAdmin() || $teacher->isAdmin())
+                    ? ($class->teacher_id ?? $teacher->id)
+                    : $teacher->id;
             }
 
-            $session = DB::transaction(function () use ($class, $teacher, $dateString) {
+            $isPrimary = $schedule ? $schedule->is_primary : true;
+            $caseStatus = $isPrimary ? Attendance::CASE_PENDING : Attendance::CASE_CLOSED;
+
+            $session = DB::transaction(function () use ($class, $teacher, $effectiveTeacherId, $dateString, $schedule, $caseStatus) {
                 $session = AttendanceSession::create([
                     'class_id' => $class->id,
-                    'teacher_id' => $teacher->id,
+                    'class_schedule_id' => $schedule?->id,
+                    'teacher_id' => $effectiveTeacherId,
                     'session_date' => $dateString,
                     'opened_at' => now(),
                     'status' => AttendanceSession::STATUS_OPEN,
@@ -66,7 +100,7 @@ class AttendanceService
                         'locked_at' => $permissionId ? now() : null,
                         'lock_reason' => $permissionId ? 'Approved parent permission' : null,
                         'permission_id' => $permissionId,
-                        'case_status' => Attendance::CASE_PENDING,
+                        'case_status' => $permissionId ? Attendance::CASE_PENDING : $caseStatus,
                         'final_status' => $permissionId ? Attendance::FINAL_EXCUSED : null,
                         'finalized_by' => $permissionId ? $teacher->id : null,
                         'finalized_at' => $permissionId ? now() : null,
@@ -81,10 +115,13 @@ class AttendanceService
                 AuditService::log('attendance.session_opened', user: $teacher, details: [
                     'class_id' => $class->id,
                     'class' => $class->name,
+                    'schedule_id' => $schedule?->id,
+                    'period' => $schedule?->period_number,
+                    'subject' => $schedule?->subject,
                     'date' => $dateString,
                 ]);
 
-                return $session->load('attendances.student', 'classRoom');
+                return $session->load('attendances.student', 'classRoom', 'schedule');
             });
 
             CacheService::invalidateAttendanceCache($class->id, $dateString);
@@ -184,15 +221,135 @@ class AttendanceService
                 'session_date' => $session->session_date->format('Y-m-d'),
             ]);
 
+            $absentAttendanceIds = $session->attendances()
+                ->where('status', Attendance::STATUS_ABSENT)
+                ->pluck('id');
+
+            foreach ($absentAttendanceIds as $attId) {
+                SendAttendanceNotificationJob::dispatch($attId);
+            }
+
             CacheService::invalidateAttendanceCache($session->class_id);
         });
     }
 
     /**
-     * Admin: Reopen a submitted attendance session for amendment.
-     * Reverts session status to 'open' and resets unfinalized student records
-     * so teacher or admin can correct marks.
-     * Locked records (approved parent permissions) remain strictly locked.
+     * Teacher: Request to reopen a submitted attendance session for amendment.
+     * Sets reopen_status to pending so Student Affairs, Admin, or Super Admin can confirm and allow.
+     */
+    public static function requestReopenSession(AttendanceSession $session, User $user, string $reason): AttendanceSession
+    {
+        if ($session->status !== AttendanceSession::STATUS_SUBMITTED && $session->status !== AttendanceSession::STATUS_CLOSED) {
+            throw new RuntimeException('Only submitted or closed sessions can be requested for reopen.');
+        }
+
+        if (trim($reason) === '') {
+            throw new RuntimeException('A mandatory reason is required to request reopening an attendance session.');
+        }
+
+        $session->update([
+            'reopen_status' => AttendanceSession::REOPEN_PENDING,
+            'reopen_reason' => $reason,
+            'reopen_requested_by' => $user->id,
+            'reopen_requested_at' => now(),
+            'reopen_decided_by' => null,
+            'reopen_decided_at' => null,
+            'reopen_decision_note' => null,
+        ]);
+
+        AuditService::log('attendance.session_reopen_requested', user: $user, details: [
+            'session_id' => $session->id,
+            'class_id' => $session->class_id,
+            'session_date' => $session->session_date->format('Y-m-d'),
+            'reason' => $reason,
+            'requested_by' => $user->name,
+        ]);
+
+        CacheService::invalidateAttendanceCache($session->class_id);
+
+        return $session->fresh();
+    }
+
+    /**
+     * Student Affairs, Admin, or Super Admin: Confirm and allow a pending reopen request.
+     */
+    public static function approveReopenSession(AttendanceSession $session, User $approver, ?string $note = null): AttendanceSession
+    {
+        if ($session->status !== AttendanceSession::STATUS_SUBMITTED && $session->status !== AttendanceSession::STATUS_CLOSED) {
+            throw new RuntimeException('Only submitted or closed sessions can be reopened.');
+        }
+
+        if (! $approver->canApproveSessionReopen()) {
+            throw new RuntimeException('You do not have permission to approve session reopen requests.');
+        }
+
+        return DB::transaction(function () use ($session, $approver, $note) {
+            $session->update([
+                'status' => AttendanceSession::STATUS_OPEN,
+                'submitted_at' => null,
+                'reopen_status' => AttendanceSession::REOPEN_APPROVED,
+                'reopen_decided_by' => $approver->id,
+                'reopen_decided_at' => now(),
+                'reopen_decision_note' => $note,
+            ]);
+
+            // Revert present records that were auto-finalized upon submission
+            $session->attendances()
+                ->where('is_locked', false)
+                ->where('final_status', Attendance::FINAL_PRESENT)
+                ->update([
+                    'final_status' => null,
+                    'finalized_by' => null,
+                    'finalized_at' => null,
+                ]);
+
+            AuditService::log('attendance.session_reopened', user: $approver, details: [
+                'session_id' => $session->id,
+                'class_id' => $session->class_id,
+                'session_date' => $session->session_date->format('Y-m-d'),
+                'reason' => $session->reopen_reason,
+                'approved_by' => $approver->name,
+                'requested_by' => $session->reopenRequester?->name,
+                'note' => $note,
+            ]);
+
+            CacheService::invalidateAttendanceCache($session->class_id);
+
+            return $session->fresh();
+        });
+    }
+
+    /**
+     * Student Affairs, Admin, or Super Admin: Reject a pending reopen request.
+     */
+    public static function rejectReopenSession(AttendanceSession $session, User $decider, ?string $note = null): AttendanceSession
+    {
+        if (! $decider->canApproveSessionReopen()) {
+            throw new RuntimeException('You do not have permission to reject session reopen requests.');
+        }
+
+        $session->update([
+            'reopen_status' => AttendanceSession::REOPEN_REJECTED,
+            'reopen_decided_by' => $decider->id,
+            'reopen_decided_at' => now(),
+            'reopen_decision_note' => $note,
+        ]);
+
+        AuditService::log('attendance.session_reopen_rejected', user: $decider, details: [
+            'session_id' => $session->id,
+            'class_id' => $session->class_id,
+            'session_date' => $session->session_date->format('Y-m-d'),
+            'rejected_by' => $decider->name,
+            'note' => $note,
+        ]);
+
+        CacheService::invalidateAttendanceCache($session->class_id);
+
+        return $session->fresh();
+    }
+
+    /**
+     * Direct Reopen by Student Affairs, Admin, or Super Admin for amendment.
      */
     public static function reopenSession(AttendanceSession $session, User $admin, string $reason): AttendanceSession
     {
@@ -208,6 +365,12 @@ class AttendanceService
             $session->update([
                 'status' => AttendanceSession::STATUS_OPEN,
                 'submitted_at' => null,
+                'reopen_status' => AttendanceSession::REOPEN_APPROVED,
+                'reopen_reason' => $reason,
+                'reopen_requested_by' => $session->reopen_requested_by ?? $admin->id,
+                'reopen_requested_at' => $session->reopen_requested_at ?? now(),
+                'reopen_decided_by' => $admin->id,
+                'reopen_decided_at' => now(),
             ]);
 
             // Revert present records that were auto-finalized upon submission
@@ -272,6 +435,8 @@ class AttendanceService
             'arrived_at' => $arrivedAt->format('H:i'),
             'minutes_late' => $minutesLate,
         ]);
+
+        SendAttendanceNotificationJob::dispatch($attendance->id, Attendance::FINAL_LATE);
 
         CacheService::invalidateAttendanceCache($attendance->session?->class_id);
     }

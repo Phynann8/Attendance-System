@@ -21,7 +21,7 @@ class StorePermissionRequest extends FormRequest
             'detail_description' => ['nullable', 'string', 'max:2000'],
             // The admin form sends "requested_by" explicitly; parents never send it
             // because the parent controller derives it from the authenticated user.
-            'requested_by' => $this->user()?->isAdmin()
+            'requested_by' => $this->routeIs('admin.*')
                 ? ['required', 'string', 'max:191']
                 : ['nullable', 'string', 'max:191'],
             'evidence' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf,doc,docx', 'max:5120'],

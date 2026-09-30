@@ -64,6 +64,8 @@
                             <div class="nav-submenu-tree"></div>
                             <a href="{{ route('admin.students.index') }}" class="nav-child-link {{ request()->routeIs('admin.students.*') ? 'active' : '' }}">{{ __('Students') }}</a>
                             <a href="{{ route('admin.classes.index') }}" class="nav-child-link {{ request()->routeIs('admin.classes.*') ? 'active' : '' }}">{{ __('Classes') }}</a>
+                            <a href="{{ route('teacher.schedule.index') }}" class="nav-child-link {{ request()->routeIs('teacher.schedule.*') ? 'active' : '' }}">{{ __('Timetables') }}</a>
+                            <a href="{{ route('admin.substitutions.index') }}" class="nav-child-link {{ request()->routeIs('admin.substitutions.*') ? 'active' : '' }}">{{ __('Substitutions') }}</a>
                             <a href="{{ route('admin.reports.index') }}" class="nav-child-link {{ request()->routeIs('admin.reports.*') ? 'active' : '' }}">{{ __('Reports') }}</a>
                             <a href="{{ route('admin.audit-logs.index') }}" class="nav-child-link {{ request()->routeIs('admin.audit-logs.*') ? 'active' : '' }}">{{ __('Audit Logs') }}</a>
                         </div>
@@ -101,6 +103,7 @@
                             <div class="flyout-header"><i class="fa-solid fa-clipboard-check"></i> {{ __('Attendance') }}</div>
                             <div class="nav-submenu-tree"></div>
                             <a href="{{ route('teacher.attendance.history') }}" class="nav-child-link {{ request()->routeIs('teacher.attendance.*') ? 'active' : '' }}">{{ __('Attendance') }}</a>
+                            <a href="{{ route('teacher.schedule.index') }}" class="nav-child-link {{ request()->routeIs('teacher.schedule.*') ? 'active' : '' }}">{{ __('My Weekly Timetable') }}</a>
                         </div>
                     </div>
                 @endif
@@ -178,10 +181,64 @@
                 </div>
                 <div class="topbar-right">
                     <div class="topbar-actions">
-                        @if(auth()->user()->campus)
-                            <div style="display:inline-flex; align-items:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:20px; padding:3px 10px; font-size:12px; font-weight:700; color:#1d4ed8; gap:6px;" title="{{ auth()->user()->campus->name_en }} ({{ auth()->user()->campus->name_kh }})">
-                                <i class="fa-solid fa-school" style="font-size:11px;"></i>
-                                <span>{{ auth()->user()->campus->code }} — {{ auth()->user()->campus->name_en }}</span>
+                        @php
+                            $userAssignedCampuses = auth()->user()->assignedCampuses();
+                            $activeCampusId = auth()->user()->activeCampusId();
+                            $activeCampus = $activeCampusId ? $userAssignedCampuses->firstWhere('id', $activeCampusId) : null;
+                            $canSwitchCampus = auth()->user()->isSuperAdmin() || auth()->user()->hasPermission('campus.switch') || $userAssignedCampuses->count() > 1;
+                        @endphp
+                        @if($canSwitchCampus && $userAssignedCampuses->count() > 1)
+                            <div class="topbar-campus-dropdown" id="topbarCampusDropdown">
+                                <button type="button" class="topbar-campus-btn" id="topbarCampusBtn" aria-haspopup="true" aria-expanded="false" title="{{ $activeCampus ? $activeCampus->name_en . ' (' . $activeCampus->name_kh . ')' : __('All Campuses') }}">
+                                    <i class="fa-solid fa-school" style="font-size:11px; color:var(--brand-gold);"></i>
+                                    <span>{{ $activeCampus ? '(' . $activeCampus->code . ')' : (auth()->user()->isSuperAdmin() ? __('All Campuses') : __('All Assigned Campuses')) . ' (' . $userAssignedCampuses->count() . ')' }}</span>
+                                    <i class="fa-solid fa-chevron-down topbar-chevron-xs"></i>
+                                </button>
+                                <div class="campus-dropdown-menu" id="campusDropdownMenu">
+                                    <div class="campus-dropdown-header">
+                                        <span>{{ __('Switch Campus') }}</span>
+                                    </div>
+                                    <form method="POST" action="{{ route('campus.switch') }}" style="margin: 0;">
+                                        @csrf
+                                        <input type="hidden" name="campus_id" value="">
+                                        <button type="submit" class="campus-dropdown-item {{ is_null($activeCampus) ? 'active' : '' }}">
+                                            <span style="display: flex; align-items: center; gap: 7px;">
+                                                <i class="fa-solid fa-layer-group" style="font-size: 11px; color: #64748b;"></i>
+                                                <strong>{{ auth()->user()->isSuperAdmin() ? __('All Campuses') : __('All Assigned Campuses') }}</strong>
+                                            </span>
+                                            @if(is_null($activeCampus))
+                                                <i class="fa-solid fa-check" style="color: var(--brand-blue); font-size: 11px;"></i>
+                                            @endif
+                                        </button>
+                                    </form>
+                                    <div class="campus-dropdown-divider"></div>
+                                    @foreach($userAssignedCampuses as $camp)
+                                        <form method="POST" action="{{ route('campus.switch') }}" style="margin: 0;">
+                                            @csrf
+                                            <input type="hidden" name="campus_id" value="{{ $camp->id }}">
+                                            <button type="submit" class="campus-dropdown-item {{ ($activeCampus && $activeCampus->id === $camp->id) ? 'active' : '' }}">
+                                                <span style="display: flex; align-items: center; gap: 7px;">
+                                                    <span class="badge badge-slate" style="font-size: 10px; padding: 1px 5px; font-weight: 700;">{{ $camp->code }}</span>
+                                                    <span>{{ $camp->name_en }}</span>
+                                                </span>
+                                                @if($activeCampus && $activeCampus->id === $camp->id)
+                                                    <i class="fa-solid fa-check" style="color: var(--brand-blue); font-size: 11px;"></i>
+                                                @endif
+                                            </button>
+                                        </form>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @elseif($activeCampus)
+                            <div class="topbar-campus-pill" title="{{ $activeCampus->name_en }} ({{ $activeCampus->name_kh }})">
+                                <i class="fa-solid fa-school" style="font-size:11px; color:var(--brand-gold);"></i>
+                                <span>({{ $activeCampus->code }})</span>
+                            </div>
+                        @elseif($userAssignedCampuses->count() === 1)
+                            @php $singleCampus = $userAssignedCampuses->first(); @endphp
+                            <div class="topbar-campus-pill" title="{{ $singleCampus->name_en }} ({{ $singleCampus->name_kh }})">
+                                <i class="fa-solid fa-school" style="font-size:11px; color:var(--brand-gold);"></i>
+                                <span>({{ $singleCampus->code }})</span>
                             </div>
                         @endif
 
@@ -320,12 +377,30 @@
                 });
             });
 
-            // Topbar User Avatar Dropdown
+            // Topbar Dropdowns
+            const campusBtn = document.getElementById('topbarCampusBtn');
+            const campusMenu = document.getElementById('campusDropdownMenu');
             const userBtn = document.getElementById('topbarUserBtn');
             const userMenu = document.getElementById('userDropdownMenu');
+
+            if (campusBtn && campusMenu) {
+                campusBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (userMenu) userMenu.classList.remove('show');
+                    campusMenu.classList.toggle('show');
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!campusMenu.contains(e.target) && !campusBtn.contains(e.target)) {
+                        campusMenu.classList.remove('show');
+                    }
+                });
+            }
+
             if (userBtn && userMenu) {
                 userBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    if (campusMenu) campusMenu.classList.remove('show');
                     userMenu.classList.toggle('show');
                 });
 
@@ -352,5 +427,120 @@
             });
         });
     </script>
+
+    @auth
+    <!-- Inactivity Auto-Timeout Modal (ATTEND-20) -->
+    <div id="inactivityModal" class="inactivity-modal-overlay" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(15,23,42,0.7); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+        <div class="inactivity-card" style="background:#fff; border-radius:14px; width:92%; max-width:440px; padding:24px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3); border:1px solid #e2e8f0; text-align:center;">
+            <div style="width:54px; height:54px; border-radius:50%; background:#fef3c7; color:#d97706; display:flex; align-items:center; justify-content:center; font-size:24px; margin:0 auto 16px;">
+                <i class="fa-solid fa-hourglass-half"></i>
+            </div>
+            <h3 style="font-size:18px; font-weight:700; color:#1e293b; margin-bottom:8px;">{{ __('Session Inactivity Warning') }}</h3>
+            <p style="font-size:14px; color:#64748b; line-height:1.5; margin-bottom:16px;">
+                {{ __('You have been inactive. To protect student data on shared terminals, your session will expire in') }}
+                <span id="inactivitySeconds" style="font-weight:700; color:#b91c1c; font-size:16px;">60</span> {{ __('seconds.') }}
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:20px;">
+                <button id="inactivityStayBtn" type="button" class="btn btn-primary" style="padding:10px 18px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-rotate-right"></i> {{ __('Stay Signed In') }}
+                </button>
+                <form method="POST" action="{{ route('logout') }}" style="margin:0;">
+                    @csrf
+                    <input type="hidden" name="reason" value="inactivity">
+                    <button type="submit" class="btn btn-secondary" style="padding:10px 16px; font-size:14px; color:#64748b; background:#f1f5f9; border:1px solid #cbd5e1;">
+                        <i class="fa-solid fa-right-from-bracket"></i> {{ __('Sign Out') }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const TOTAL_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+            const WARNING_TIME_MS = 60 * 1000;       // 60 seconds warning
+            const IDLE_BEFORE_WARNING_MS = TOTAL_TIMEOUT_MS - WARNING_TIME_MS; // 14 minutes
+
+            let warningTimer = null;
+            let logoutTimer = null;
+            let countdownInterval = null;
+            let secondsLeft = 60;
+
+            const modal = document.getElementById('inactivityModal');
+            const secondsSpan = document.getElementById('inactivitySeconds');
+            const stayBtn = document.getElementById('inactivityStayBtn');
+
+            if (!modal) return;
+
+            function resetTimers() {
+                if (modal.style.display !== 'none') {
+                    return;
+                }
+                clearTimeout(warningTimer);
+                clearTimeout(logoutTimer);
+                clearInterval(countdownInterval);
+
+                warningTimer = setTimeout(showWarning, IDLE_BEFORE_WARNING_MS);
+            }
+
+            function showWarning() {
+                modal.style.display = 'flex';
+                secondsLeft = 60;
+                if (secondsSpan) secondsSpan.textContent = secondsLeft;
+
+                countdownInterval = setInterval(() => {
+                    secondsLeft--;
+                    if (secondsSpan) secondsSpan.textContent = secondsLeft;
+                    if (secondsLeft <= 0) {
+                        clearInterval(countdownInterval);
+                        performLogout();
+                    }
+                }, 1000);
+
+                logoutTimer = setTimeout(performLogout, WARNING_TIME_MS);
+            }
+
+            function performLogout() {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = "{{ route('logout') }}";
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = '_token';
+                csrf.value = "{{ csrf_token() }}";
+                form.appendChild(csrf);
+                const reason = document.createElement('input');
+                reason.type = 'hidden';
+                reason.name = 'reason';
+                reason.value = 'inactivity';
+                form.appendChild(reason);
+                document.body.appendChild(form);
+                form.submit();
+            }
+
+            if (stayBtn) {
+                stayBtn.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                    clearTimeout(logoutTimer);
+                    clearInterval(countdownInterval);
+                    fetch("{{ route('session.ping') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': "{{ csrf_token() }}"
+                        }
+                    }).catch(() => {});
+                    resetTimers();
+                });
+            }
+
+            ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+                window.addEventListener(evt, resetTimers, { passive: true });
+            });
+
+            resetTimers();
+        })();
+    </script>
+    @endauth
 </body>
 </html>

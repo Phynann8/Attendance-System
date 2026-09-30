@@ -13,6 +13,13 @@
             <div class="sub">{{ __('School Attendance System') }}</div>
         </div>
 
+        @if(session('warning'))
+            <div class="alert alert-warning" style="background:#fffbeb; color:#92400e; border:1px solid #fde68a; border-radius:8px; padding:12px; margin-bottom:16px; font-size:13.5px; display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <div>{{ session('warning') }}</div>
+            </div>
+        @endif
+
         @if(session('info'))
             <div class="alert alert-info">{{ session('info') }}</div>
         @endif

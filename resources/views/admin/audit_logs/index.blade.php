@@ -12,6 +12,17 @@
 
 <div class="card">
     <form method="GET" class="filter-row">
+        @if((auth()->user()->isSuperAdmin() || count(auth()->user()->assignedCampusIds()) > 1) && !session('active_campus_id'))
+            <div class="form-group">
+                <label for="campus_id">{{ __('Campus') }}</label>
+                <select id="campus_id" name="campus_id">
+                    <option value="">{{ auth()->user()->isSuperAdmin() ? __('All Campuses') : __('All Assigned Campuses') }}</option>
+                    @foreach($campuses as $camp)
+                        <option value="{{ $camp->id }}" @selected(request('campus_id') == $camp->id)>{{ $camp->name_en }} ({{ $camp->code }})</option>
+                    @endforeach
+                </select>
+            </div>
+        @endif
         <div class="form-group">
             <label for="action">{{ __('Action Type') }}</label>
             <select id="action" name="action">
@@ -30,7 +41,7 @@
             <input type="text" id="q" name="q" value="{{ request('q') }}" placeholder="{{ __('Search actor or details…') }}">
         </div>
         <button class="btn" type="submit" style="align-self: flex-end;">{{ __('Filter') }}</button>
-        @if(request()->hasAny(['action', 'date', 'q']))
+        @if(request()->hasAny(['action', 'date', 'q', 'campus_id']))
             <a href="{{ route('admin.audit-logs.index') }}" class="btn btn-secondary" style="align-self: flex-end;">{{ __('Reset') }}</a>
         @endif
     </form>

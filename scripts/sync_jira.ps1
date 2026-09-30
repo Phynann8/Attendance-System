@@ -1,10 +1,19 @@
 param (
-    [string]$JiraDomain = "https://phynann.atlassian.net",
-    [string]$UserEmail = "phynann8@gmail.com",
-    [string]$ApiToken = "ATATT3xFfGF0nfCwXfPpgik0gFJLZBIPICqdbMj_-3VpRoqAgPYU1X07j6u8tv6yipkFIIqLGhrqIqq5BLotjnB7SniWMDQKRolizBOo2v1pIlOMhM05GBDO4GEtS-vAns9YoBICaK5qUSJmQR77Y9CJ7itadd2LWfaqbAyE8UMFFTZ8SyuguBc=62C2751E",
+    [string]$JiraDomain = $env:JIRA_DOMAIN,
+    [string]$UserEmail = $env:JIRA_USER_EMAIL,
+    [string]$ApiToken = $env:JIRA_API_TOKEN,
     [string]$ProjectKey = "ATTEND",
     [string]$ProjectName = "Attendance Management System"
 )
+
+if (-not $JiraDomain -or -not $UserEmail -or -not $ApiToken) {
+    Write-Host "ERROR: Missing required Jira credentials." -ForegroundColor Red
+    Write-Host "Set the following environment variables before running this script:" -ForegroundColor Yellow
+    Write-Host "  `$env:JIRA_DOMAIN      = 'https://your-domain.atlassian.net'" -ForegroundColor Gray
+    Write-Host "  `$env:JIRA_USER_EMAIL   = 'your-email@example.com'" -ForegroundColor Gray
+    Write-Host "  `$env:JIRA_API_TOKEN    = 'your-api-token'" -ForegroundColor Gray
+    exit 1
+}
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -53,7 +62,7 @@ try {
 
 $ExistingMap = @{}
 try {
-    $Uri = "$JiraBaseUrl/rest/api/3/search/jql?jql=project=$ProjectKey" + [char]38 + "fields=summary,issuetype"
+    $Uri = "$JiraBaseUrl/rest/api/3/search/jql?jql=project=$ProjectKey" + [char]38 + "maxResults=100" + [char]38 + "fields=summary,issuetype"
     $SearchRes = Invoke-RestMethod -Uri $Uri -Headers $Headers -Method Get
     if ($SearchRes.issues) {
         foreach ($iss in $SearchRes.issues) {

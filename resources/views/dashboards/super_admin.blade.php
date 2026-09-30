@@ -8,13 +8,16 @@
         <div class="page-title">{{ __('Super Administration') }}</div>
         <div class="page-sub">{{ __('System-wide governance, user management, and Role-Based Access Control (RBAC).') }}</div>
     </div>
-    <div style="display: flex; gap: 8px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <a href="{{ route('teacher.attendance.history') }}" class="btn btn-amber"><i class="fa-solid fa-clipboard-check"></i> {{ __('Check-in Attendance') }}</a>
+        <a href="{{ route('student-affairs.review.index') }}" class="btn btn-outline"><i class="fa-solid fa-magnifying-glass"></i> {{ __('Gate Review') }}</a>
+        <a href="{{ route('admin.absence.index') }}" class="btn btn-outline"><i class="fa-solid fa-scale-balanced"></i> {{ __('Absence Review') }}</a>
         <a href="{{ route('super-admin.users.create') }}" class="btn">+ {{ __('Add User') }}</a>
         <a href="{{ route('super-admin.roles.create') }}" class="btn btn-secondary">+ {{ __('Create Role') }}</a>
     </div>
 </div>
 
-<div class="grid grid-4" style="margin-bottom: 20px;">
+<div class="grid grid-3" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px;">
     <div class="stat">
         <div class="num">{{ $totalUsers }}</div>
         <div class="label">{{ __('Total Users') }} ({{ $activeUsers }} {{ __('active') }})</div>
@@ -30,6 +33,14 @@
     <div class="stat">
         <div class="num">{{ $totalStudents }}</div>
         <div class="label">{{ __('Students across :count classes', ['count' => $totalClasses]) }}</div>
+    </div>
+    <div class="stat" style="border-top: 3px solid var(--brand-gold);">
+        <div class="num"><a href="{{ route('teacher.attendance.history') }}" style="color: inherit; text-decoration: none;">{{ $openSessions }}</a></div>
+        <div class="label"><a href="{{ route('teacher.attendance.history') }}" style="color: inherit;">{{ __('Open Attendance Sessions') }} →</a></div>
+    </div>
+    <div class="stat" style="border-top: 3px solid var(--brand-blue);">
+        <div class="num"><a href="{{ route('admin.permissions.index') }}" style="color: inherit; text-decoration: none;">{{ $pendingPermissions }}</a></div>
+        <div class="label"><a href="{{ route('admin.permissions.index') }}" style="color: inherit;">{{ __('Pending Permissions') }} →</a></div>
     </div>
 </div>
 

@@ -10,19 +10,32 @@ use App\Models\Permission;
 use App\Models\Student;
 use App\Services\AttendanceService;
 use App\Services\AuditService;
+use App\Services\FileUploadSecurityService;
 use Illuminate\Http\Request;
 
 class PermissionController extends Controller
 {
     public function index(Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        $campusId = $userCampusId ?? ($request->filled('campus_id') ? (int) $request->input('campus_id') : null);
+        $user = $request->user();
+        $userCampusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
+
+        if ($userCampusId) {
+            $campusId = $userCampusId;
+        } elseif ($request->filled('campus_id')) {
+            $filterCampus = (int) $request->input('campus_id');
+            $campusId = ($user->isSuperAdmin() || $user->hasCampusAccess($filterCampus)) ? $filterCampus : null;
+        } else {
+            $campusId = null;
+        }
 
         $query = Permission::with(['student.classRoom', 'approver', 'rejecter'])->latest();
 
         if ($campusId) {
             $query->forCampus($campusId);
+        } elseif (! $user->isSuperAdmin() && ! empty($assignedCampusIds)) {
+            $query->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
         }
 
         if ($request->filled('status')) {
@@ -37,9 +50,22 @@ class PermissionController extends Controller
             $query->where('student_id', $request->input('student_id'));
         }
 
-        $students = Student::forCampus($campusId)->with('classRoom')->orderBy('name')->get();
-        $classes = ClassRoom::forCampus($campusId)->orderBy('name')->get();
-        $campuses = Campus::where('is_active', true)->ordered()->get();
+        $studentsQuery = Student::with('classRoom')->orderBy('name');
+        $classesQuery = ClassRoom::orderBy('name');
+
+        if ($campusId) {
+            $studentsQuery->forCampus($campusId);
+            $classesQuery->forCampus($campusId);
+        } elseif (! $user->isSuperAdmin() && ! empty($assignedCampusIds)) {
+            $studentsQuery->whereIn('campus_id', $assignedCampusIds);
+            $classesQuery->whereIn('campus_id', $assignedCampusIds);
+        }
+
+        $students = $studentsQuery->get();
+        $classes = $classesQuery->get();
+        $campuses = $user->isSuperAdmin()
+            ? Campus::where('is_active', true)->ordered()->get()
+            : Campus::whereIn('id', $assignedCampusIds)->where('is_active', true)->ordered()->get();
 
         return view('admin.permissions.index', [
             'permissions' => $query->paginate(15)->withQueryString(),
@@ -51,23 +77,34 @@ class PermissionController extends Controller
 
     public function create(Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        $students = Student::forCampus($userCampusId)->with('classRoom')->orderBy('name')->get();
-        $classes = ClassRoom::forCampus($userCampusId)->orderBy('name')->get();
+        $user = $request->user();
+        $userCampusId = $user->activeCampusId();
+        $assignedCampusIds = $user->assignedCampusIds();
+
+        $studentsQuery = Student::with('classRoom')->orderBy('name');
+        $classesQuery = ClassRoom::orderBy('name');
+
+        if ($userCampusId) {
+            $studentsQuery->forCampus($userCampusId);
+            $classesQuery->forCampus($userCampusId);
+        } elseif (! $user->isSuperAdmin() && ! empty($assignedCampusIds)) {
+            $studentsQuery->whereIn('campus_id', $assignedCampusIds);
+            $classesQuery->whereIn('campus_id', $assignedCampusIds);
+        }
 
         return view('admin.permissions.create', [
-            'students' => $students,
-            'classes' => $classes,
+            'students' => $studentsQuery->get(),
+            'classes' => $classesQuery->get(),
         ]);
     }
 
     public function store(StorePermissionRequest $request)
     {
+        $user = $request->user();
         $data = $request->validated();
         $student = Student::findOrFail($data['student_id']);
 
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $student->campus_id && (int) $student->campus_id !== $userCampusId) {
+        if (! $user->isSuperAdmin() && $student->campus_id && ! $user->hasCampusAccess($student->campus_id)) {
             abort(403, 'You do not have permission to submit permission requests for students of another campus.');
         }
 
@@ -83,7 +120,7 @@ class PermissionController extends Controller
             'category' => $data['category'] ?? Permission::CATEGORY_OTHER,
             'detail_description' => $data['detail_description'] ?? null,
             'evidence_path' => $request->hasFile('evidence')
-                ? $request->file('evidence')->store('permissions/evidence', 'public')
+                ? FileUploadSecurityService::validateAndStore($request->file('evidence'))
                 : null,
             'status' => Permission::STATUS_PENDING,
             'admin_note' => $data['admin_note'] ?? null,
@@ -102,8 +139,8 @@ class PermissionController extends Controller
 
     public function show(Permission $permission, Request $request)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $permission->student?->campus_id && (int) $permission->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $permission->student?->campus_id && ! $user->hasCampusAccess($permission->student->campus_id)) {
             abort(403, 'You do not have permission to view permission requests from another campus.');
         }
 
@@ -114,8 +151,8 @@ class PermissionController extends Controller
 
     public function approve(Request $request, Permission $permission)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $permission->student?->campus_id && (int) $permission->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $permission->student?->campus_id && ! $user->hasCampusAccess($permission->student->campus_id)) {
             abort(403, 'You do not have permission to approve permission requests from another campus.');
         }
 
@@ -134,8 +171,8 @@ class PermissionController extends Controller
 
     public function reject(Request $request, Permission $permission)
     {
-        $userCampusId = $request->user()->activeCampusId();
-        if ($userCampusId && $permission->student?->campus_id && (int) $permission->student->campus_id !== $userCampusId) {
+        $user = $request->user();
+        if (! $user->isSuperAdmin() && $permission->student?->campus_id && ! $user->hasCampusAccess($permission->student->campus_id)) {
             abort(403, 'You do not have permission to reject permission requests from another campus.');
         }
 

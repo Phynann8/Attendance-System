@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Attendance;
 use App\Models\AttendanceSession;
 use App\Models\ClassRoom;
+use App\Models\ClassSchedule;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\ScheduleSubstitution;
 use App\Models\Student;
 use App\Models\User;
 use App\Services\CacheService;
@@ -57,8 +59,9 @@ class DashboardController extends Controller
         }
 
         if ($user->isAdmin()) {
-            $cacheKey = 'admin_'.($campusId ?? 'all');
-            $stats = CacheService::rememberDashboardStats($cacheKey, function () use ($campusId) {
+            $assignedCampusIds = $user->assignedCampusIds();
+            $cacheKey = 'admin_'.($campusId ?? (empty($assignedCampusIds) ? 'all' : implode('_', $assignedCampusIds)));
+            $stats = CacheService::rememberDashboardStats($cacheKey, function () use ($campusId, $assignedCampusIds) {
                 $permQuery = Permission::query();
                 $sessionQuery = AttendanceSession::query();
                 $attQuery = Attendance::query();
@@ -67,6 +70,10 @@ class DashboardController extends Controller
                     $permQuery->forCampus($campusId);
                     $sessionQuery->forCampus($campusId);
                     $attQuery->forCampus($campusId);
+                } elseif (! empty($assignedCampusIds)) {
+                    $permQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
+                    $sessionQuery->whereHas('classRoom', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
+                    $attQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
                 }
 
                 return [
@@ -96,6 +103,7 @@ class DashboardController extends Controller
             $classIds = $classes->pluck('id');
 
             $todaySessions = AttendanceSession::whereIn('class_id', $classIds)
+                ->whereNull('class_schedule_id')
                 ->whereDate('session_date', today())
                 ->get()
                 ->keyBy('class_id');
@@ -105,10 +113,86 @@ class DashboardController extends Controller
                 $class->studentCount = $class->active_students_count;
             }
 
-            return view('dashboards.teacher', compact('classes'));
+            // Period schedules for today (Story 38)
+            $today = today();
+            $dayOfWeek = $today->dayOfWeekIso; // 1 = Monday, ..., 7 = Sunday
+
+            // 1. Regular schedules for today where teacher_id = user->id
+            $regularSchedules = ClassSchedule::with(['classRoom.campus'])
+                ->where('day_of_week', $dayOfWeek)
+                ->where('is_active', true)
+                ->where('teacher_id', $user->id)
+                ->get();
+
+            // 2. Substituted schedules for today where user is substitute
+            $substitutions = ScheduleSubstitution::with(['classSchedule.classRoom.campus', 'originalTeacher'])
+                ->whereDate('session_date', $today)
+                ->where('substitute_teacher_id', $user->id)
+                ->get();
+
+            // Schedules where this teacher was substituted out today
+            $coveredSubstitutions = ScheduleSubstitution::with('substituteTeacher')
+                ->whereDate('session_date', $today)
+                ->whereIn('class_schedule_id', $regularSchedules->pluck('id'))
+                ->get()
+                ->keyBy('class_schedule_id');
+
+            $todayPeriods = collect();
+
+            foreach ($regularSchedules as $sched) {
+                $sub = $coveredSubstitutions->get($sched->id);
+                $isCovered = (bool) $sub;
+                $todayPeriods->push((object) [
+                    'schedule' => $sched,
+                    'class' => $sched->classRoom,
+                    'period_number' => $sched->period_number,
+                    'subject' => $sched->subject,
+                    'start_time' => $sched->start_time,
+                    'end_time' => $sched->end_time,
+                    'is_primary' => $sched->is_primary,
+                    'is_substitute' => false,
+                    'is_covered' => $isCovered,
+                    'substitute_teacher' => $sub?->substituteTeacher,
+                    'original_teacher' => null,
+                ]);
+            }
+
+            foreach ($substitutions as $sub) {
+                if ($sub->classSchedule) {
+                    $todayPeriods->push((object) [
+                        'schedule' => $sub->classSchedule,
+                        'class' => $sub->classSchedule->classRoom,
+                        'period_number' => $sub->classSchedule->period_number,
+                        'subject' => $sub->classSchedule->subject,
+                        'start_time' => $sub->classSchedule->start_time,
+                        'end_time' => $sub->classSchedule->end_time,
+                        'is_primary' => $sub->classSchedule->is_primary,
+                        'is_substitute' => true,
+                        'is_covered' => false,
+                        'original_teacher' => $sub->originalTeacher,
+                        'reason' => $sub->reason,
+                    ]);
+                }
+            }
+
+            $todayPeriods = $todayPeriods->sortBy(fn ($p) => ($p->period_number * 1000) + (int) str_replace(':', '', $p->start_time ?? '00:00'))->values();
+
+            $schedIds = $todayPeriods->pluck('schedule.id')->filter()->unique();
+            $periodSessions = AttendanceSession::whereIn('class_schedule_id', $schedIds)
+                ->whereDate('session_date', $today)
+                ->get()
+                ->keyBy('class_schedule_id');
+
+            foreach ($todayPeriods as $p) {
+                $p->session = $periodSessions->get($p->schedule->id);
+                $p->studentCount = $p->class ? $p->class->activeStudents()->count() : 0;
+            }
+
+            return view('dashboards.teacher', compact('classes', 'todayPeriods'));
         }
 
         if ($user->isStudentAffairs()) {
+            $assignedCampusIds = $user->assignedCampusIds();
             $pendingQuery = Attendance::with(['student.classRoom', 'session'])
                 ->where('status', Attendance::STATUS_ABSENT)
                 ->where('case_status', Attendance::CASE_PENDING)
@@ -116,13 +200,15 @@ class DashboardController extends Controller
 
             if ($campusId) {
                 $pendingQuery->forCampus($campusId);
+            } elseif (! empty($assignedCampusIds)) {
+                $pendingQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
             }
 
             $pendingCases = $pendingQuery->get()
                 ->sortByDesc(fn ($a) => $a->session->session_date);
 
-            $cacheKey = 'student_affairs_'.($campusId ?? 'all');
-            $stats = CacheService::rememberDashboardStats($cacheKey, function () use ($campusId) {
+            $cacheKey = 'student_affairs_'.($campusId ?? (empty($assignedCampusIds) ? 'all' : implode('_', $assignedCampusIds)));
+            $stats = CacheService::rememberDashboardStats($cacheKey, function () use ($campusId, $assignedCampusIds) {
                 $lateQuery = Attendance::where('final_status', Attendance::FINAL_LATE)
                     ->whereDate('finalized_at', today());
 
@@ -132,6 +218,9 @@ class DashboardController extends Controller
                 if ($campusId) {
                     $lateQuery->forCampus($campusId);
                     $escalatedQuery->forCampus($campusId);
+                } elseif (! empty($assignedCampusIds)) {
+                    $lateQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
+                    $escalatedQuery->whereHas('student', fn ($q) => $q->whereIn('campus_id', $assignedCampusIds));
                 }
 
                 return [

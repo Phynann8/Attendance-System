@@ -15,7 +15,7 @@ class UserController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = User::query()->with(['roleRecord', 'campus']);
+        $query = User::query()->with(['roleRecord', 'campus', 'campuses']);
 
         // Status filter: active, inactive, trashed, or all
         $status = $request->input('status', 'all');
@@ -36,7 +36,11 @@ class UserController extends Controller
 
         // Campus filter
         if ($request->filled('campus_id')) {
-            $query->where('campus_id', $request->input('campus_id'));
+            $cId = (int) $request->input('campus_id');
+            $query->where(function ($q) use ($cId) {
+                $q->where('campus_id', $cId)
+                    ->orWhereHas('campuses', fn ($c) => $c->where('campuses.id', $cId));
+            });
         }
 
         // Search query
@@ -68,30 +72,40 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')->whereNull('deleted_at')],
-            'password' => ['required', 'string', 'min:6'],
+            'password' => ['required', 'string', 'min:8'],
             'role_id' => ['required', 'exists:roles,id'],
+            'campus_ids' => ['nullable', 'array'],
+            'campus_ids.*' => ['exists:campuses,id'],
             'campus_id' => ['nullable', 'exists:campuses,id'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
 
-        User::create([
+        $campusIds = $request->input('campus_ids');
+        if ($campusIds === null && $request->filled('campus_id')) {
+            $campusIds = [(int) $request->input('campus_id')];
+        }
+        $campusIds = is_array($campusIds) ? array_map('intval', $campusIds) : [];
+
+        $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
             'password' => $validated['password'],
             'role_id' => $role->id,
             'role' => $role->slug,
-            'campus_id' => $validated['campus_id'] ?? null,
+            'campus_id' => count($campusIds) === 1 ? $campusIds[0] : null,
             'is_active' => $request->boolean('is_active', true),
         ]);
+
+        $user->campuses()->sync($campusIds);
 
         return redirect()->route('super-admin.users.index')->with('success', "User '{$validated['name']}' created successfully.");
     }
 
     public function edit(int $id): View
     {
-        $user = User::withTrashed()->findOrFail($id);
+        $user = User::withTrashed()->with('campuses')->findOrFail($id);
         $roles = Role::orderBy('name')->get();
         $campuses = Campus::where('is_active', true)->orderBy('id')->get();
 
@@ -111,19 +125,27 @@ class UserController extends Controller
                 'max:255',
                 Rule::unique('users', 'email')->ignore($user->id)->whereNull('deleted_at'),
             ],
-            'password' => ['nullable', 'string', 'min:6'],
+            'password' => ['nullable', 'string', 'min:8'],
             'role_id' => ['required', 'exists:roles,id'],
+            'campus_ids' => ['nullable', 'array'],
+            'campus_ids.*' => ['exists:campuses,id'],
             'campus_id' => ['nullable', 'exists:campuses,id'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
         $role = Role::findOrFail($validated['role_id']);
 
+        $campusIds = $request->input('campus_ids');
+        if ($campusIds === null && $request->has('campus_id')) {
+            $campusIds = $request->filled('campus_id') ? [(int) $request->input('campus_id')] : [];
+        }
+        $campusIds = is_array($campusIds) ? array_map('intval', $campusIds) : [];
+
         $user->name = $validated['name'];
         $user->email = $validated['email'];
         $user->role_id = $role->id;
         $user->role = $role->slug;
-        $user->campus_id = $validated['campus_id'] ?? null;
+        $user->campus_id = count($campusIds) === 1 ? $campusIds[0] : null;
         $user->is_active = $request->boolean('is_active', true);
 
         if (! empty($validated['password'])) {
@@ -131,6 +153,7 @@ class UserController extends Controller
         }
 
         $user->save();
+        $user->campuses()->sync($campusIds);
 
         return redirect()->route('super-admin.users.index')->with('success', "User '{$user->name}' updated successfully.");
     }

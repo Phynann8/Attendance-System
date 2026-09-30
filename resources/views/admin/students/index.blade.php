@@ -8,7 +8,6 @@
         <div class="page-title">{{ __('Students') }}</div>
         <div class="page-sub">{{ __('All students in classes.') }}</div>
     </div>
-    <a href="{{ route('admin.students.create') }}" class="btn">+ {{ __('Add Student') }}</a>
 </div>
 
 <div class="card">

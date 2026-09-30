@@ -7,23 +7,40 @@ use App\Http\Requests\StorePermissionRequest;
 use App\Models\Permission;
 use App\Models\Student;
 use App\Services\AuditService;
+use App\Services\FileUploadSecurityService;
 use Illuminate\Http\Request;
 
 class PermissionController extends Controller
 {
     public function index(Request $request)
     {
-        $permissions = Permission::with(['student.classRoom'])
-            ->whereIn('student_id', $request->user()->students()->pluck('id'))
-            ->latest()
-            ->get();
+        $user = $request->user();
+        $query = Permission::with(['student.classRoom']);
+
+        if (! $user->isSuperAdmin()) {
+            $query->whereIn('student_id', $user->students()->pluck('id'));
+        } elseif ($campusId = $user->activeCampusId()) {
+            $query->forCampus($campusId);
+        }
+
+        $permissions = $query->latest()->get();
 
         return view('parent.permissions.index', compact('permissions'));
     }
 
     public function create(Request $request)
     {
-        $students = $request->user()->students()->with('classRoom')->orderBy('name')->get();
+        $user = $request->user();
+
+        if ($user->isSuperAdmin()) {
+            $studentsQuery = Student::with('classRoom')->orderBy('name');
+            if ($campusId = $user->activeCampusId()) {
+                $studentsQuery->forCampus($campusId);
+            }
+            $students = $studentsQuery->get();
+        } else {
+            $students = $user->students()->with('classRoom')->orderBy('name')->get();
+        }
 
         abort_if($students->isEmpty(), 403, 'No children are linked to this parent account.');
 
@@ -34,8 +51,9 @@ class PermissionController extends Controller
     {
         $data = $request->validated();
         $student = Student::findOrFail($data['student_id']);
+        $user = $request->user();
 
-        abort_unless($student->parent_user_id === $request->user()->id, 403);
+        abort_unless($student->parent_user_id === $user->id || $user->isSuperAdmin() || $user->isAdmin(), 403);
 
         $permission = Permission::create([
             'student_id' => $student->id,
@@ -47,7 +65,7 @@ class PermissionController extends Controller
             'category' => $data['category'] ?? Permission::CATEGORY_OTHER,
             'detail_description' => $data['detail_description'] ?? null,
             'evidence_path' => $request->hasFile('evidence')
-                ? $request->file('evidence')->store('permissions/evidence', 'public')
+                ? FileUploadSecurityService::validateAndStore($request->file('evidence'))
                 : null,
             'status' => Permission::STATUS_PENDING,
         ]);

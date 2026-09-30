@@ -73,6 +73,27 @@
             </div>
 
             <div class="form-group" style="margin:0;">
+                <label for="subject" style="font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; display:block;">{{ __('Subject') }}</label>
+                <select id="subject" name="subject" style="width:100%; padding:7px 10px; font-size:13px; border-radius:6px; border:1px solid #cbd5e1;">
+                    <option value="">{{ __('All Subjects') }}</option>
+                    <option value="homeroom" @selected($subject === 'homeroom')>{{ __('Daily Homeroom') }}</option>
+                    @foreach($availableSubjects as $s)
+                        <option value="{{ $s }}" @selected($subject === $s)>{{ $s }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-group" style="margin:0;">
+                <label for="period_number" style="font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; display:block;">{{ __('Period') }}</label>
+                <select id="period_number" name="period_number" style="width:100%; padding:7px 10px; font-size:13px; border-radius:6px; border:1px solid #cbd5e1;">
+                    <option value="">{{ __('All Periods') }}</option>
+                    @foreach($availablePeriods as $pNum)
+                        <option value="{{ $pNum }}" @selected($periodNumber == $pNum)>{{ __('Period #:num', ['num' => $pNum]) }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-group" style="margin:0;">
                 <label for="final_status" style="font-size:12px; font-weight:600; color:#475569; margin-bottom:4px; display:block;">{{ __('Final Status') }}</label>
                 <select id="final_status" name="final_status" style="width:100%; padding:7px 10px; font-size:13px; border-radius:6px; border:1px solid #cbd5e1;">
                     <option value="">{{ __('All Statuses') }}</option>
@@ -104,10 +125,68 @@
     <div class="stat"><div class="num text-red">{{ $summary['absent_without_permission'] }}</div><div class="label">{{ __('Unexcused') }}</div></div>
 </div>
 
+@if(!empty($subjectBreakdown))
+<div class="card" style="margin-bottom: 20px;">
+    <div class="flex-between" style="margin-bottom: 12px;">
+        <h2 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-chart-pie" style="color: var(--brand-blue, #0284c7);"></i>
+            {{ __('Subject & Period Attendance Breakdown') }}
+        </h2>
+        <span class="muted small">{{ count($subjectBreakdown) }} {{ __('Subject(s)') }}</span>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>{{ __('Subject') }}</th>
+                <th>{{ __('Sessions') }}</th>
+                <th>{{ __('Total Marks') }}</th>
+                <th>{{ __('Present') }}</th>
+                <th>{{ __('Late') }}</th>
+                <th>{{ __('Excused') }}</th>
+                <th>{{ __('Absent') }}</th>
+                <th style="min-width: 170px;">{{ __('Attendance Rate') }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($subjectBreakdown as $sb)
+                <tr>
+                    <td>
+                        @if($sb['is_homeroom'])
+                            <span class="badge badge-slate" style="font-size: 10px; font-weight: 700;">{{ __('Homeroom') }}</span>
+                            <strong>{{ __('Daily Homeroom') }}</strong>
+                        @else
+                            <span class="badge badge-blue" style="font-size: 10px; font-weight: 700;">{{ $sb['period'] }}</span>
+                            <strong>{{ $sb['name'] }}</strong>
+                        @endif
+                    </td>
+                    <td>{{ $sb['sessions_count'] }}</td>
+                    <td><strong>{{ $sb['total'] }}</strong></td>
+                    <td><span class="text-green font-semibold">{{ $sb['present'] }}</span></td>
+                    <td><span class="text-amber font-semibold">{{ $sb['late'] }}</span></td>
+                    <td><span class="text-green font-semibold">{{ $sb['excused'] }}</span></td>
+                    <td><span class="text-red font-semibold">{{ $sb['unexcused'] }}</span></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {{ $sb['attendance_rate'] }}%; height: 100%; background: {{ $sb['attendance_rate'] >= 90 ? '#10b981' : ($sb['attendance_rate'] >= 75 ? '#f59e0b' : '#ef4444') }}; border-radius: 4px;"></div>
+                            </div>
+                            <strong style="font-size: 12px; min-width: 42px; text-align: right; color: {{ $sb['attendance_rate'] >= 90 ? '#059669' : ($sb['attendance_rate'] >= 75 ? '#d97706' : '#dc2626') }};">
+                                {{ $sb['attendance_rate'] }}%
+                            </strong>
+                        </div>
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+</div>
+@endif
+
 <div class="card">
     <div class="flex-between" style="margin-bottom:12px;">
         <h2 style="margin:0;">
-            {{ __('Attendance Records') }} ({{ $rows->count() }})
+            {{ __('Attendance Records') }} ({{ method_exists($rows, 'total') ? $rows->total() : $rows->count() }})
         </h2>
     </div>
 
@@ -118,6 +197,7 @@
                 <th>{{ __('Date') }}</th>
                 <th>{{ __('Student') }}</th>
                 <th>{{ __('Class') }}</th>
+                <th>{{ __('Subject / Period') }}</th>
                 <th>{{ __('Roll-Call') }}</th>
                 <th>{{ __('Arrival') }}</th>
                 <th>{{ __('Late (Min)') }}</th>
@@ -132,6 +212,14 @@
                     <td style="white-space:nowrap;">{{ $attendance->session->session_date->format('Y-m-d') }}</td>
                     <td><strong>{{ $attendance->student->name }}</strong></td>
                     <td>{{ $attendance->session->classRoom->name ?? '—' }}</td>
+                    <td>
+                        @if($attendance->session->schedule)
+                            <span class="badge badge-blue" style="font-size: 10px;">#{{ $attendance->session->schedule->period_number }}</span>
+                            <span style="font-weight: 600; font-size: 12px;">{{ $attendance->session->schedule->subject }}</span>
+                        @else
+                            <span class="badge badge-slate" style="font-size: 10px;">{{ __('Homeroom') }}</span>
+                        @endif
+                    </td>
                     <td>
                         @if($attendance->status)
                             <x-status-badge :status="$attendance->status" />
@@ -158,9 +246,15 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="9" class="empty">{{ __('No attendance records match the specified criteria.') }}</td></tr>
+                <tr><td colspan="10" class="empty">{{ __('No attendance records match the specified criteria.') }}</td></tr>
             @endforelse
         </tbody>
     </table>
+
+    @if(method_exists($rows, 'hasPages') && $rows->hasPages())
+        <div style="margin-top: 16px;">
+            {{ $rows->links() }}
+        </div>
+    @endif
 </div>
 @endsection

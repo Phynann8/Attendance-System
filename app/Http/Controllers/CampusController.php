@@ -15,8 +15,11 @@ class CampusController extends Controller
     {
         $user = $request->user();
 
-        // Only super admin or authorized multi-campus users can switch active campus
-        if (! $user->isSuperAdmin() && ! $user->hasPermission('campus.switch')) {
+        $canSwitch = $user->isSuperAdmin()
+            || $user->hasPermission('campus.switch')
+            || count($user->assignedCampusIds()) > 1;
+
+        if (! $canSwitch) {
             abort(403, 'You do not have permission to switch campuses.');
         }
 
@@ -25,10 +28,15 @@ class CampusController extends Controller
         if ($campusId === '' || $campusId === 'all' || $campusId === null) {
             session()->forget('active_campus_id');
 
-            return back()->with('success', 'Viewing all campuses.');
+            return back()->with('success', $user->isSuperAdmin() ? 'Viewing all campuses.' : 'Viewing all assigned campuses.');
         }
 
-        $campus = Campus::findOrFail((int) $campusId);
+        $targetId = (int) $campusId;
+        if (! $user->isSuperAdmin() && ! $user->hasCampusAccess($targetId)) {
+            abort(403, 'You do not have permission to access this campus.');
+        }
+
+        $campus = Campus::findOrFail($targetId);
         session(['active_campus_id' => $campus->id]);
 
         return back()->with('success', "Switched to campus: {$campus->name_en} ({$campus->code}).");

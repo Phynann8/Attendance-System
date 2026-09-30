@@ -736,16 +736,107 @@ a:hover {
     border: 2px solid var(--brand-blue);
 }
 
-.topbar-lang-pill {
+.topbar-lang-pill,
+.topbar-campus-pill {
     background: rgba(255, 255, 255, 0.12);
     border: 1px solid rgba(255, 255, 255, 0.22);
     border-radius: 20px;
     padding: 3px 10px;
     font-size: 11.5px;
+    font-weight: 700;
+    color: #ffffff;
     display: inline-flex;
     align-items: center;
     gap: 6px;
     cursor: default;
+}
+
+.topbar-campus-dropdown {
+    position: relative;
+}
+
+.topbar-campus-btn {
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.topbar-campus-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.topbar-chevron-xs {
+    font-size: 9px;
+    opacity: 0.8;
+    margin-left: 2px;
+}
+
+.campus-dropdown-menu {
+    display: none;
+    position: absolute;
+    left: 0;
+    top: calc(100% + 8px);
+    min-width: 220px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    padding: 6px 0;
+}
+
+.campus-dropdown-menu.show {
+    display: block;
+}
+
+.campus-dropdown-header {
+    padding: 6px 14px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.campus-dropdown-divider {
+    border-top: 1px solid #e2e8f0;
+    margin: 4px 0;
+}
+
+.campus-dropdown-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    color: #334155;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.campus-dropdown-item:hover {
+    background: #f1f5f9;
+    color: var(--brand-blue);
+}
+
+.campus-dropdown-item.active {
+    font-weight: 700;
+    color: var(--brand-blue);
+    background: #eff6ff;
 }
 
 .lang-switch-link {
