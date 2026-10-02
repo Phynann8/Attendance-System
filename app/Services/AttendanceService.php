@@ -414,11 +414,7 @@ class AttendanceService
         }
 
         $attendanceTime = $attendance->session->submitted_at;
-
-        // Carbon 3 returns signed diffs; compute an unambiguous absolute value.
-        $minutesLate = (int) ceil(
-            abs($arrivedAt->getTimestamp() - Carbon::parse($attendanceTime)->getTimestamp()) / 60
-        );
+        $minutesLate = self::calculateMinutesLate($arrivedAt, Carbon::parse($attendanceTime));
 
         $attendance->update([
             'arrived_at' => $arrivedAt,
@@ -653,5 +649,13 @@ class AttendanceService
         CacheService::invalidateAttendanceCache($permission->class_id);
 
         return $permission->fresh();
+    }
+
+    /**
+     * Compute minutes late between arrival time and submission / reference time.
+     */
+    public static function calculateMinutesLate(Carbon $arrivedAt, Carbon $referenceTime): int
+    {
+        return (int) ceil(abs($arrivedAt->getTimestamp() - $referenceTime->getTimestamp()) / 60);
     }
 }

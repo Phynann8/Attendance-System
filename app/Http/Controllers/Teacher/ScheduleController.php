@@ -67,8 +67,9 @@ class ScheduleController extends Controller
         $nextWeek = $weekStart->copy()->addWeek()->format('Y-m-d');
         $todayDate = today()->format('Y-m-d');
 
-        // Check if Saturday schedule exists for this teacher
-        $hasSaturday = ClassSchedule::where('teacher_id', $targetTeacher->id)->where('day_of_week', 6)->exists();
+        // Check if Saturday schedule or substitution exists for this teacher
+        $hasSaturday = ClassSchedule::where('teacher_id', $targetTeacher->id)->where('day_of_week', 6)->exists()
+            || ScheduleSubstitution::where('substitute_teacher_id', $targetTeacher->id)->whereDate('session_date', $weekStart->copy()->addDays(5)->toDateString())->exists();
         $daysCount = $hasSaturday ? 6 : 5;
         $weekEnd = $weekStart->copy()->addDays($daysCount - 1);
 
@@ -94,13 +95,15 @@ class ScheduleController extends Controller
         // Substitutions where target teacher is covering for a colleague this week
         $substitutionsCovering = ScheduleSubstitution::with(['classSchedule.classRoom.campus', 'originalTeacher'])
             ->where('substitute_teacher_id', $targetTeacher->id)
-            ->whereBetween('session_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereDate('session_date', '>=', $weekStart->toDateString())
+            ->whereDate('session_date', '<=', $weekEnd->toDateString())
             ->get();
 
         // Substitutions where target teacher is covered away by a colleague this week
         $substitutionsCoveredAway = ScheduleSubstitution::with('substituteTeacher')
             ->where('original_teacher_id', $targetTeacher->id)
-            ->whereBetween('session_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereDate('session_date', '>=', $weekStart->toDateString())
+            ->whereDate('session_date', '<=', $weekEnd->toDateString())
             ->get()
             ->keyBy(fn ($sub) => $sub->class_schedule_id.'_'.$sub->session_date->format('Y-m-d'));
 
@@ -111,7 +114,8 @@ class ScheduleController extends Controller
         // Fetch existing attendance sessions for this week
         $scheduleIds = $allSchedules->pluck('id')->filter()->unique();
         $weekSessions = AttendanceSession::whereIn('class_schedule_id', $scheduleIds)
-            ->whereBetween('session_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereDate('session_date', '>=', $weekStart->toDateString())
+            ->whereDate('session_date', '<=', $weekEnd->toDateString())
             ->get()
             ->keyBy(fn ($s) => $s->class_schedule_id.'_'.$s->session_date->format('Y-m-d'));
 
